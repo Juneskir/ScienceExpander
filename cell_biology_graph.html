@@ -1,0 +1,1504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Science Expander | Knowledge Graph: Quorum Sensing Coherence Dynamics in Cell Biology: Mechanisms of Adaptive Homeostasis</title>
+  <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-primary: #07090e;
+      --bg-surface: rgba(15, 22, 36, 0.78);
+      --border-color: rgba(255, 255, 255, 0.1);
+      --accent-cyan: #00e5ff;
+      --accent-purple: #9d4edd;
+      --accent-green: #10b981;
+      --accent-gold: #f59e0b;
+      --text-primary: #f8fafc;
+      --text-secondary: #94a3b8;
+      --text-muted: #64748b;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body, html { width: 100%; height: 100%; overflow: hidden; background-color: var(--bg-primary); font-family: 'Inter', system-ui, -apple-system, sans-serif; color: var(--text-primary); }
+
+    .ambient-glow {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: radial-gradient(circle at 20% 30%, rgba(157, 78, 221, 0.08) 0%, transparent 50%),
+                  radial-gradient(circle at 80% 70%, rgba(0, 229, 255, 0.08) 0%, transparent 50%),
+                  radial-gradient(circle at 50% 50%, rgba(16, 185, 129, 0.05) 0%, transparent 60%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    #network-container { width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 1; }
+
+    .header-bar {
+      position: absolute; top: 16px; left: 20px; z-index: 10;
+      background: var(--bg-surface);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--border-color);
+      border-radius: 14px;
+      padding: 12px 20px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+      display: flex; align-items: center; gap: 18px;
+    }
+    .header-title { font-size: 15px; font-weight: 700; letter-spacing: 0.5px; background: linear-gradient(135deg, #00e5ff 0%, #9d4edd 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .header-sub { font-size: 13px; color: var(--text-secondary); max-width: 320px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .stat-badge { font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 20px; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.08); color: var(--text-secondary); }
+
+    .toolbar {
+      position: absolute; top: 16px; right: 20px; z-index: 10;
+      background: var(--bg-surface);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--border-color);
+      border-radius: 14px;
+      padding: 8px 14px;
+      display: flex; align-items: center; gap: 10px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    }
+    .search-box {
+      background: rgba(0, 0, 0, 0.35); border: 1px solid var(--border-color); border-radius: 8px;
+      padding: 6px 12px; color: var(--text-primary); font-size: 12px; outline: none; width: 190px;
+      transition: all 0.2s ease;
+    }
+    .search-box:focus { border-color: var(--accent-cyan); width: 230px; box-shadow: 0 0 12px rgba(0, 229, 255, 0.3); }
+    .btn {
+      background: rgba(255, 255, 255, 0.06); border: 1px solid var(--border-color); border-radius: 8px;
+      color: var(--text-primary); font-size: 12px; font-weight: 500; padding: 6px 12px; cursor: pointer;
+      display: flex; align-items: center; gap: 6px; transition: all 0.2s ease;
+    }
+    .btn:hover { background: rgba(255, 255, 255, 0.12); border-color: rgba(255, 255, 255, 0.2); transform: translateY(-1px); }
+
+    .legend-card {
+      position: absolute; bottom: 20px; left: 20px; z-index: 10;
+      background: var(--bg-surface);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--border-color);
+      border-radius: 14px;
+      padding: 14px 18px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+      font-size: 12px;
+    }
+    .legend-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--text-muted); margin-bottom: 8px; }
+    .legend-item { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; color: var(--text-secondary); }
+    .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+    .dot-hub { background: #00e5ff; box-shadow: 0 0 8px #00e5ff; }
+    .dot-bridge { background: #9d4edd; box-shadow: 0 0 8px #9d4edd; }
+    .dot-idea { background: #10b981; box-shadow: 0 0 8px #10b981; }
+    .dot-lit { background: #f59e0b; box-shadow: 0 0 8px #f59e0b; }
+
+    .inspector-card {
+      position: absolute; bottom: 20px; right: 20px; z-index: 10;
+      width: 410px; max-height: calc(100vh - 100px); overflow-y: auto;
+      background: var(--bg-surface);
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--border-color);
+      border-radius: 18px;
+      padding: 22px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+      transition: transform 0.3s ease, opacity 0.3s ease;
+    }
+    .inspector-card::-webkit-scrollbar { width: 4px; }
+    .inspector-card::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 4px; }
+
+    .node-category-badge {
+      display: inline-block; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+      padding: 4px 10px; border-radius: 6px; margin-bottom: 12px; color: #ffffff;
+    }
+    .node-title { font-size: 16px; font-weight: 700; line-height: 1.35; margin-bottom: 12px; color: #ffffff; }
+    .node-meta-grid { display: grid; grid-template-columns: 1fr; gap: 8px; margin-bottom: 14px; font-size: 12px; }
+    .meta-row { display: flex; align-items: baseline; gap: 8px; color: var(--text-secondary); }
+    .meta-label { font-weight: 600; color: var(--text-muted); min-width: 75px; }
+    .meta-value { color: var(--text-primary); }
+
+    .btn-action-row { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
+    .action-link {
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      padding: 9px 14px; border-radius: 10px; font-size: 12px; font-weight: 600; text-decoration: none;
+      transition: all 0.2s ease;
+    }
+    .action-doi { background: rgba(0, 229, 255, 0.12); color: #00e5ff; border: 1px solid rgba(0, 229, 255, 0.3); }
+    .action-doi:hover { background: rgba(0, 229, 255, 0.22); border-color: #00e5ff; }
+    .action-oa { background: linear-gradient(135deg, rgba(16, 185, 129, 0.2) 0%, rgba(5, 150, 105, 0.3) 100%); color: #34d399; border: 1px solid rgba(52, 211, 153, 0.4); }
+    .action-oa:hover { background: linear-gradient(135deg, rgba(16, 185, 129, 0.3) 0%, rgba(5, 150, 105, 0.4) 100%); border-color: #34d399; }
+
+    .content-box {
+      margin-top: 14px; padding: 12px; border-radius: 10px; background: rgba(0, 0, 0, 0.3);
+      border: 1px solid rgba(255, 255, 255, 0.05); font-size: 12px; line-height: 1.5; color: var(--text-secondary);
+    }
+    .content-box-title { font-weight: 600; color: var(--text-primary); margin-bottom: 6px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+    .placeholder-guide { text-align: center; padding: 24px 10px; color: var(--text-muted); font-size: 13px; line-height: 1.6; }
+  </style>
+</head>
+<body>
+  <div class="ambient-glow"></div>
+  <div id="network-container"></div>
+
+  <div class="header-bar">
+    <div>
+      <div class="header-title">🔬 SCIENCE EXPANDER</div>
+      <div class="header-sub">Topic Focus: <strong>Quorum Sensing Coherence Dynamics in Cell Biology: Mechanisms of Adaptive Homeostasis</strong></div>
+    </div>
+    <div class="stat-badge">24 Nodes</div>
+    <div class="stat-badge">23 Edges</div>
+  </div>
+
+  <div class="toolbar">
+    <input type="text" id="search-input" class="search-box" placeholder="Search node, author, bridge..." />
+    <button id="btn-physics" class="btn">⏸ Freeze</button>
+    <button id="btn-fit" class="btn">🔄 Fit View</button>
+  </div>
+
+  <div class="legend-card">
+    <div class="legend-title">Topology Layers</div>
+    <div class="legend-item"><span class="dot dot-hub"></span> Core Input Seed Topics</div>
+    <div class="legend-item"><span class="dot dot-bridge"></span> Interdisciplinary Bridges</div>
+    <div class="legend-item"><span class="dot dot-idea"></span> Research Directions (10 Ideas)</div>
+    <div class="legend-item"><span class="dot dot-lit"></span> Literature Triad (Papers)</div>
+  </div>
+
+  <div id="inspector" class="inspector-card">
+    <div id="inspector-content">
+      <div class="placeholder-guide">
+        <div style="font-size: 28px; margin-bottom: 10px;">🌌</div>
+        <strong>Interactive Knowledge Topology</strong><br>
+        Click or hover over any node to inspect its epistemic framework, bridge domain, or publication metrics.
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const nodesData = [
+  {
+    "id": "hub_1",
+    "label": "Cell Biology",
+    "group": "hub",
+    "shape": "hexagon",
+    "size": 32,
+    "color": {
+      "background": "#00e5ff",
+      "border": "#ffffff",
+      "highlight": {
+        "background": "#38bdf8",
+        "border": "#ffffff"
+      },
+      "hover": {
+        "background": "#38bdf8",
+        "border": "#ffffff"
+      }
+    },
+    "font": {
+      "color": "#ffffff",
+      "size": 15,
+      "face": "Inter, sans-serif",
+      "bold": true
+    },
+    "borderWidth": 2,
+    "custom_data": {
+      "category": "Core Seed Topic",
+      "title": "Cell Biology",
+      "badge_color": "#00e5ff",
+      "faculty": "Biology",
+      "description": "Input scientific seed topic driving conceptual cross-breeding."
+    }
+  },
+  {
+    "id": "bridge_Synthetic_Biology___Morphogenetic_Engineering",
+    "label": "Synthetic Biology & Morphogenetic Engineering",
+    "group": "bridge",
+    "shape": "diamond",
+    "size": 24,
+    "color": {
+      "background": "#9d4edd",
+      "border": "#c77dff",
+      "highlight": {
+        "background": "#b5179e",
+        "border": "#ffffff"
+      },
+      "hover": {
+        "background": "#b5179e",
+        "border": "#ffffff"
+      }
+    },
+    "font": {
+      "color": "#e0aaff",
+      "size": 13,
+      "face": "Inter, sans-serif"
+    },
+    "borderWidth": 2,
+    "custom_data": {
+      "category": "Interdisciplinary Bridge",
+      "title": "Synthetic Biology & Morphogenetic Engineering",
+      "badge_color": "#9d4edd",
+      "faculty": "Bioengineering & Developmental Biology",
+      "methods": "CRISPR-Guided Epigenetic Circuit Design, Bio-Orthogonal Metabolic Flux Redirection, Turing Pattern Reaction-Diffusion Modeling",
+      "phenomena": "Membraneless Condensation and Phase Separation, Quorum Sensing Coherence, Morphogen Gradient Formation",
+      "description": "Legitimate interdisciplinary scientific field contributing analytical mechanisms (CRISPR-Guided Epigenetic Circuit Design, Bio-Orthogonal Metabolic Flux Redirection) and physical phenomena (Membraneless Condensation and Phase Separation, Quorum Sensing Coherence)."
+    }
+  },
+  {
+    "id": "bridge_Information_Theory_in_Biological_Signalling",
+    "label": "Information Theory in Biological Signalling",
+    "group": "bridge",
+    "shape": "diamond",
+    "size": 24,
+    "color": {
+      "background": "#9d4edd",
+      "border": "#c77dff",
+      "highlight": {
+        "background": "#b5179e",
+        "border": "#ffffff"
+      },
+      "hover": {
+        "background": "#b5179e",
+        "border": "#ffffff"
+      }
+    },
+    "font": {
+      "color": "#e0aaff",
+      "size": 13,
+      "face": "Inter, sans-serif"
+    },
+    "borderWidth": 2,
+    "custom_data": {
+      "category": "Interdisciplinary Bridge",
+      "title": "Information Theory in Biological Signalling",
+      "badge_color": "#9d4edd",
+      "faculty": "Information Theory & Quantitative Biology",
+      "methods": "Channel Capacity Quantification, Mutual Information Estimation in Single Cells, Rate-Distortion Analysis of Receptors",
+      "phenomena": "Information Bottlenecks in Transduction, Noise Filtering via Multi-Step Relays, Stochastic Receptor Gating Limits",
+      "description": "Legitimate interdisciplinary scientific field contributing analytical mechanisms (Channel Capacity Quantification, Mutual Information Estimation in Single Cells) and physical phenomena (Information Bottlenecks in Transduction, Noise Filtering via Multi-Step Relays)."
+    }
+  },
+  {
+    "id": "bridge_Biophysics___Mechanobiology",
+    "label": "Biophysics & Mechanobiology",
+    "group": "bridge",
+    "shape": "diamond",
+    "size": 24,
+    "color": {
+      "background": "#9d4edd",
+      "border": "#c77dff",
+      "highlight": {
+        "background": "#b5179e",
+        "border": "#ffffff"
+      },
+      "hover": {
+        "background": "#b5179e",
+        "border": "#ffffff"
+      }
+    },
+    "font": {
+      "color": "#e0aaff",
+      "size": 13,
+      "face": "Inter, sans-serif"
+    },
+    "borderWidth": 2,
+    "custom_data": {
+      "category": "Interdisciplinary Bridge",
+      "title": "Biophysics & Mechanobiology",
+      "badge_color": "#9d4edd",
+      "faculty": "Physics & Biological Physics",
+      "methods": "Traction Force Microscopy, Atomic Force Spectroscopy, Viscoelastic Rheology Profiling",
+      "phenomena": "Mechanotransductive Gating, Cytoskeletal Tension Remodeling, Strain-Induced Fluidization",
+      "description": "Legitimate interdisciplinary scientific field contributing analytical mechanisms (Traction Force Microscopy, Atomic Force Spectroscopy) and physical phenomena (Mechanotransductive Gating, Cytoskeletal Tension Remodeling)."
+    }
+  },
+  {
+    "id": "bridge_Stochastic_Thermodynamics_of_Living_Systems",
+    "label": "Stochastic Thermodynamics of Living Systems",
+    "group": "bridge",
+    "shape": "diamond",
+    "size": 24,
+    "color": {
+      "background": "#9d4edd",
+      "border": "#c77dff",
+      "highlight": {
+        "background": "#b5179e",
+        "border": "#ffffff"
+      },
+      "hover": {
+        "background": "#b5179e",
+        "border": "#ffffff"
+      }
+    },
+    "font": {
+      "color": "#e0aaff",
+      "size": 13,
+      "face": "Inter, sans-serif"
+    },
+    "borderWidth": 2,
+    "custom_data": {
+      "category": "Interdisciplinary Bridge",
+      "title": "Stochastic Thermodynamics of Living Systems",
+      "badge_color": "#9d4edd",
+      "faculty": "Non-Equilibrium Physics & Biophysics",
+      "methods": "Thermodynamic Uncertainty Relations (TUR), Fluctuation Theorem Decompositions, Entropy Production Rate Quantification",
+      "phenomena": "Non-Equilibrium Steady State Dissipation, Energy-Accuracy Trade-Offs, Free-Energy Driven Kinetic Proofreading",
+      "description": "Legitimate interdisciplinary scientific field contributing analytical mechanisms (Thermodynamic Uncertainty Relations (TUR), Fluctuation Theorem Decompositions) and physical phenomena (Non-Equilibrium Steady State Dissipation, Energy-Accuracy Trade-Offs)."
+    }
+  },
+  {
+    "id": "bridge_Bio_Imaging__Optical_Diffraction___Inverse_Problems",
+    "label": "Bio-Imaging, Optical Diffraction & Inverse Problems",
+    "group": "bridge",
+    "shape": "diamond",
+    "size": 24,
+    "color": {
+      "background": "#9d4edd",
+      "border": "#c77dff",
+      "highlight": {
+        "background": "#b5179e",
+        "border": "#ffffff"
+      },
+      "hover": {
+        "background": "#b5179e",
+        "border": "#ffffff"
+      }
+    },
+    "font": {
+      "color": "#e0aaff",
+      "size": 13,
+      "face": "Inter, sans-serif"
+    },
+    "borderWidth": 2,
+    "custom_data": {
+      "category": "Interdisciplinary Bridge",
+      "title": "Bio-Imaging, Optical Diffraction & Inverse Problems",
+      "badge_color": "#9d4edd",
+      "faculty": "Optics & Applied Physics",
+      "methods": "Super-Resolution Structured Illumination (SIM), Phase Retrieval and Deconvolution, Cryo-Electron Tomography Reconstruction",
+      "phenomena": "Sub-Diffraction Waveguide Localization, Optical Phase Singularity, Scattering-Induced Speckle Correlation",
+      "description": "Legitimate interdisciplinary scientific field contributing analytical mechanisms (Super-Resolution Structured Illumination (SIM), Phase Retrieval and Deconvolution) and physical phenomena (Sub-Diffraction Waveguide Localization, Optical Phase Singularity)."
+    }
+  },
+  {
+    "id": "bridge_Systems_Biology___Gene_Regulatory_Networks",
+    "label": "Systems Biology & Gene Regulatory Networks",
+    "group": "bridge",
+    "shape": "diamond",
+    "size": 24,
+    "color": {
+      "background": "#9d4edd",
+      "border": "#c77dff",
+      "highlight": {
+        "background": "#b5179e",
+        "border": "#ffffff"
+      },
+      "hover": {
+        "background": "#b5179e",
+        "border": "#ffffff"
+      }
+    },
+    "font": {
+      "color": "#e0aaff",
+      "size": 13,
+      "face": "Inter, sans-serif"
+    },
+    "borderWidth": 2,
+    "custom_data": {
+      "category": "Interdisciplinary Bridge",
+      "title": "Systems Biology & Gene Regulatory Networks",
+      "badge_color": "#9d4edd",
+      "faculty": "Computational & Quantitative Biology",
+      "methods": "Bifurcation and Phase Plane Analysis, Sensitivity and Metabolic Flux Analysis, Dynamic Network Motif Profiling",
+      "phenomena": "Bistable State Switching, Limit Cycle Oscillations, Noise-Induced State Transitions",
+      "description": "Legitimate interdisciplinary scientific field contributing analytical mechanisms (Bifurcation and Phase Plane Analysis, Sensitivity and Metabolic Flux Analysis) and physical phenomena (Bistable State Switching, Limit Cycle Oscillations)."
+    }
+  },
+  {
+    "id": "bridge_Complex_Network_Science___Nonlinear_Dynamics",
+    "label": "Complex Network Science & Nonlinear Dynamics",
+    "group": "bridge",
+    "shape": "diamond",
+    "size": 24,
+    "color": {
+      "background": "#9d4edd",
+      "border": "#c77dff",
+      "highlight": {
+        "background": "#b5179e",
+        "border": "#ffffff"
+      },
+      "hover": {
+        "background": "#b5179e",
+        "border": "#ffffff"
+      }
+    },
+    "font": {
+      "color": "#e0aaff",
+      "size": 13,
+      "face": "Inter, sans-serif"
+    },
+    "borderWidth": 2,
+    "custom_data": {
+      "category": "Interdisciplinary Bridge",
+      "title": "Complex Network Science & Nonlinear Dynamics",
+      "badge_color": "#9d4edd",
+      "faculty": "Mathematics & Complex Systems",
+      "methods": "Spectral Graph Decomposition, Percolation and Robustness Analysis, Nonlinear Time Series Embedding",
+      "phenomena": "Critical Slowing Down at Tipping Points, Cascade Breakdown Dynamics, Phase Synchronization",
+      "description": "Legitimate interdisciplinary scientific field contributing analytical mechanisms (Spectral Graph Decomposition, Percolation and Robustness Analysis) and physical phenomena (Critical Slowing Down at Tipping Points, Cascade Breakdown Dynamics)."
+    }
+  },
+  {
+    "id": "bridge_Active_Matter___Microfluidics",
+    "label": "Active Matter & Microfluidics",
+    "group": "bridge",
+    "shape": "diamond",
+    "size": 24,
+    "color": {
+      "background": "#9d4edd",
+      "border": "#c77dff",
+      "highlight": {
+        "background": "#b5179e",
+        "border": "#ffffff"
+      },
+      "hover": {
+        "background": "#b5179e",
+        "border": "#ffffff"
+      }
+    },
+    "font": {
+      "color": "#e0aaff",
+      "size": 13,
+      "face": "Inter, sans-serif"
+    },
+    "borderWidth": 2,
+    "custom_data": {
+      "category": "Interdisciplinary Bridge",
+      "title": "Active Matter & Microfluidics",
+      "badge_color": "#9d4edd",
+      "faculty": "Soft Matter Physics & Fluid Mechanics",
+      "methods": "Microfluidic Droplet Confinement, Hydrodynamic Flow Field Velocimetry, Continuum Active Gel Hydrodynamics",
+      "phenomena": "Motility-Induced Phase Separation (MIPS), Collective Bacterial Swarming, Active Cytoplasmic Streaming",
+      "description": "Legitimate interdisciplinary scientific field contributing analytical mechanisms (Microfluidic Droplet Confinement, Hydrodynamic Flow Field Velocimetry) and physical phenomena (Motility-Induced Phase Separation (MIPS), Collective Bacterial Swarming)."
+    }
+  },
+  {
+    "id": "bridge_Evolutionary_Game_Dynamics___Population_Ecology",
+    "label": "Evolutionary Game Dynamics & Population Ecology",
+    "group": "bridge",
+    "shape": "diamond",
+    "size": 24,
+    "color": {
+      "background": "#9d4edd",
+      "border": "#c77dff",
+      "highlight": {
+        "background": "#b5179e",
+        "border": "#ffffff"
+      },
+      "hover": {
+        "background": "#b5179e",
+        "border": "#ffffff"
+      }
+    },
+    "font": {
+      "color": "#e0aaff",
+      "size": 13,
+      "face": "Inter, sans-serif"
+    },
+    "borderWidth": 2,
+    "custom_data": {
+      "category": "Interdisciplinary Bridge",
+      "title": "Evolutionary Game Dynamics & Population Ecology",
+      "badge_color": "#9d4edd",
+      "faculty": "Applied Mathematics & Evolutionary Biology",
+      "methods": "Replicator Dynamics Formulations, Evolutionary Stable Strategy (ESS) Analysis, Spatial Population Lattice Modeling",
+      "phenomena": "Cooperative Trait Stabilization, Frequency-Dependent Selection Transitions, Tragedy of the Commons Avoidance",
+      "description": "Legitimate interdisciplinary scientific field contributing analytical mechanisms (Replicator Dynamics Formulations, Evolutionary Stable Strategy (ESS) Analysis) and physical phenomena (Cooperative Trait Stabilization, Frequency-Dependent Selection Transitions)."
+    }
+  },
+  {
+    "id": "bridge_Topological_Data_Analysis___Differential_Geometry",
+    "label": "Topological Data Analysis & Differential Geometry",
+    "group": "bridge",
+    "shape": "diamond",
+    "size": 24,
+    "color": {
+      "background": "#9d4edd",
+      "border": "#c77dff",
+      "highlight": {
+        "background": "#b5179e",
+        "border": "#ffffff"
+      },
+      "hover": {
+        "background": "#b5179e",
+        "border": "#ffffff"
+      }
+    },
+    "font": {
+      "color": "#e0aaff",
+      "size": 13,
+      "face": "Inter, sans-serif"
+    },
+    "borderWidth": 2,
+    "custom_data": {
+      "category": "Interdisciplinary Bridge",
+      "title": "Topological Data Analysis & Differential Geometry",
+      "badge_color": "#9d4edd",
+      "faculty": "Mathematics & Theoretical Physics",
+      "methods": "Persistent Homology and Filtration, Manifold Learning and Geodesic Mapping, Euler Characteristic Transforms",
+      "phenomena": "Geometric Phase Invariance, Topological Boundary Preservation, Betti Number Transitions",
+      "description": "Legitimate interdisciplinary scientific field contributing analytical mechanisms (Persistent Homology and Filtration, Manifold Learning and Geodesic Mapping) and physical phenomena (Geometric Phase Invariance, Topological Boundary Preservation)."
+    }
+  },
+  {
+    "id": "idea_1",
+    "label": "#01 Quorum Sensing Coherence...",
+    "group": "selected_idea",
+    "shape": "dot",
+    "size": 28,
+    "color": {
+      "background": "#00f59b",
+      "border": "#ffffff",
+      "highlight": {
+        "background": "#34d399",
+        "border": "#ffffff"
+      },
+      "hover": {
+        "background": "#34d399",
+        "border": "#ffffff"
+      }
+    },
+    "font": {
+      "color": "#ffffff",
+      "size": 13,
+      "face": "Inter, sans-serif",
+      "bold": true
+    },
+    "borderWidth": 3,
+    "custom_data": {
+      "category": "Selected Research Direction",
+      "index": 1,
+      "title": "Quorum Sensing Coherence Dynamics in Cell Biology: Mechanisms of Adaptive Homeostasis",
+      "badge_color": "#00f59b",
+      "bridge": "Synthetic Biology & Morphogenetic Engineering",
+      "faculty": "Bioengineering & Developmental Biology",
+      "affinity": "100% HIGH",
+      "lens": "Mechanistic Analogy",
+      "rationale": "Analyzes Cell Biology through the lens of quorum sensing coherence, mapping dynamic transitions to adaptive homeostasis.",
+      "query": "\"synthetic biology\" \"Cell Biology\"",
+      "selected": true
+    }
+  },
+  {
+    "id": "idea_2",
+    "label": "#02 Coupling Optimal Informa...",
+    "group": "idea",
+    "shape": "dot",
+    "size": 18,
+    "color": {
+      "background": "#10b981",
+      "border": "#059669",
+      "highlight": {
+        "background": "#34d399",
+        "border": "#ffffff"
+      },
+      "hover": {
+        "background": "#34d399",
+        "border": "#ffffff"
+      }
+    },
+    "font": {
+      "color": "#a7f3d0",
+      "size": 11,
+      "face": "Inter, sans-serif",
+      "bold": false
+    },
+    "borderWidth": 1,
+    "custom_data": {
+      "category": "Generated Research Direction",
+      "index": 2,
+      "title": "Coupling Optimal Information Transmission with Cell Biology: Implications for Signalling Fidelity",
+      "badge_color": "#10b981",
+      "bridge": "Information Theory in Biological Signalling",
+      "faculty": "Information Theory & Quantitative Biology",
+      "affinity": "100% HIGH",
+      "lens": "Structural Coupling",
+      "rationale": "Investigates the interfacial interplay between optimal information transmission and Cell Biology.",
+      "query": "\"information theory in biology\" \"Cell Biology\"",
+      "selected": false
+    }
+  },
+  {
+    "id": "idea_3",
+    "label": "#03 Viscoelastic Rheology Pr...",
+    "group": "idea",
+    "shape": "dot",
+    "size": 18,
+    "color": {
+      "background": "#10b981",
+      "border": "#059669",
+      "highlight": {
+        "background": "#34d399",
+        "border": "#ffffff"
+      },
+      "hover": {
+        "background": "#34d399",
+        "border": "#ffffff"
+      }
+    },
+    "font": {
+      "color": "#a7f3d0",
+      "size": 11,
+      "face": "Inter, sans-serif",
+      "bold": false
+    },
+    "borderWidth": 1,
+    "custom_data": {
+      "category": "Generated Research Direction",
+      "index": 3,
+      "title": "Viscoelastic Rheology Profiling in Cell Biology: Resolving Tensional Homeostasis",
+      "badge_color": "#10b981",
+      "bridge": "Biophysics & Mechanobiology",
+      "faculty": "Physics & Biological Physics",
+      "affinity": "100% HIGH",
+      "lens": "Methodological Transfer",
+      "rationale": "Transfers Biophysics & Mechanobiology methods (Viscoelastic Rheology Profiling) to investigate tensional homeostasis in Cell Biology.",
+      "query": "\"mechanobiology\" \"Cell Biology\"",
+      "selected": false
+    }
+  },
+  {
+    "id": "idea_4",
+    "label": "#04 Microscopic Reversibilit...",
+    "group": "idea",
+    "shape": "dot",
+    "size": 18,
+    "color": {
+      "background": "#10b981",
+      "border": "#059669",
+      "highlight": {
+        "background": "#34d399",
+        "border": "#ffffff"
+      },
+      "hover": {
+        "background": "#34d399",
+        "border": "#ffffff"
+      }
+    },
+    "font": {
+      "color": "#a7f3d0",
+      "size": 11,
+      "face": "Inter, sans-serif",
+      "bold": false
+    },
+    "borderWidth": 1,
+    "custom_data": {
+      "category": "Generated Research Direction",
+      "index": 4,
+      "title": "Microscopic Reversibility Breaking Dynamics in Cell Biology: Mechanisms of Fluctuation Robustness",
+      "badge_color": "#10b981",
+      "bridge": "Stochastic Thermodynamics of Living Systems",
+      "faculty": "Non-Equilibrium Physics & Biophysics",
+      "affinity": "100% HIGH",
+      "lens": "Mechanistic Analogy",
+      "rationale": "Analyzes Cell Biology through the lens of microscopic reversibility breaking, mapping dynamic transitions to fluctuation robustness.",
+      "query": "\"stochastic thermodynamics\" \"Cell Biology\"",
+      "selected": false
+    }
+  },
+  {
+    "id": "idea_5",
+    "label": "#05 Sub-Diffraction Waveguid...",
+    "group": "idea",
+    "shape": "dot",
+    "size": 18,
+    "color": {
+      "background": "#10b981",
+      "border": "#059669",
+      "highlight": {
+        "background": "#34d399",
+        "border": "#ffffff"
+      },
+      "hover": {
+        "background": "#34d399",
+        "border": "#ffffff"
+      }
+    },
+    "font": {
+      "color": "#a7f3d0",
+      "size": 11,
+      "face": "Inter, sans-serif",
+      "bold": false
+    },
+    "borderWidth": 1,
+    "custom_data": {
+      "category": "Generated Research Direction",
+      "index": 5,
+      "title": "Sub-Diffraction Waveguide Localization Dynamics in Cell Biology: Mechanisms of Non-Invasive Penetration",
+      "badge_color": "#10b981",
+      "bridge": "Bio-Imaging, Optical Diffraction & Inverse Problems",
+      "faculty": "Optics & Applied Physics",
+      "affinity": "100% HIGH",
+      "lens": "Mechanistic Analogy",
+      "rationale": "Analyzes Cell Biology through the lens of sub-diffraction waveguide localization, mapping dynamic transitions to non-invasive penetration.",
+      "query": "\"super-resolution imaging\" \"Cell Biology\"",
+      "selected": false
+    }
+  },
+  {
+    "id": "idea_6",
+    "label": "#06 Noise-Induced State Tran...",
+    "group": "idea",
+    "shape": "dot",
+    "size": 18,
+    "color": {
+      "background": "#10b981",
+      "border": "#059669",
+      "highlight": {
+        "background": "#34d399",
+        "border": "#ffffff"
+      },
+      "hover": {
+        "background": "#34d399",
+        "border": "#ffffff"
+      }
+    },
+    "font": {
+      "color": "#a7f3d0",
+      "size": 11,
+      "face": "Inter, sans-serif",
+      "bold": false
+    },
+    "borderWidth": 1,
+    "custom_data": {
+      "category": "Generated Research Direction",
+      "index": 6,
+      "title": "Noise-Induced State Transitions Dynamics in Cell Biology: Mechanisms of Dynamical Homeostasis",
+      "badge_color": "#10b981",
+      "bridge": "Systems Biology & Gene Regulatory Networks",
+      "faculty": "Computational & Quantitative Biology",
+      "affinity": "100% HIGH",
+      "lens": "Mechanistic Analogy",
+      "rationale": "Analyzes Cell Biology through the lens of noise-induced state transitions, mapping dynamic transitions to dynamical homeostasis.",
+      "query": "\"systems biology\" \"Cell Biology\"",
+      "selected": false
+    }
+  },
+  {
+    "id": "idea_7",
+    "label": "#07 Spectral Graph Decomposi...",
+    "group": "idea",
+    "shape": "dot",
+    "size": 18,
+    "color": {
+      "background": "#10b981",
+      "border": "#059669",
+      "highlight": {
+        "background": "#34d399",
+        "border": "#ffffff"
+      },
+      "hover": {
+        "background": "#34d399",
+        "border": "#ffffff"
+      }
+    },
+    "font": {
+      "color": "#a7f3d0",
+      "size": 11,
+      "face": "Inter, sans-serif",
+      "bold": false
+    },
+    "borderWidth": 1,
+    "custom_data": {
+      "category": "Generated Research Direction",
+      "index": 7,
+      "title": "Spectral Graph Decomposition in Cell Biology: Resolving Fault Tolerance",
+      "badge_color": "#10b981",
+      "bridge": "Complex Network Science & Nonlinear Dynamics",
+      "faculty": "Mathematics & Complex Systems",
+      "affinity": "95% HIGH",
+      "lens": "Methodological Transfer",
+      "rationale": "Transfers Complex Network Science & Nonlinear Dynamics methods (Spectral Graph Decomposition) to investigate fault tolerance in Cell Biology.",
+      "query": "\"complex networks\" \"Cell Biology\"",
+      "selected": false
+    }
+  },
+  {
+    "id": "idea_8",
+    "label": "#08 Coupling Microfluidic Co...",
+    "group": "idea",
+    "shape": "dot",
+    "size": 18,
+    "color": {
+      "background": "#10b981",
+      "border": "#059669",
+      "highlight": {
+        "background": "#34d399",
+        "border": "#ffffff"
+      },
+      "hover": {
+        "background": "#34d399",
+        "border": "#ffffff"
+      }
+    },
+    "font": {
+      "color": "#a7f3d0",
+      "size": 11,
+      "face": "Inter, sans-serif",
+      "bold": false
+    },
+    "borderWidth": 1,
+    "custom_data": {
+      "category": "Generated Research Direction",
+      "index": 8,
+      "title": "Coupling Microfluidic Compartmentalization with Cell Biology: Implications for Coordinated Swarming",
+      "badge_color": "#10b981",
+      "bridge": "Active Matter & Microfluidics",
+      "faculty": "Soft Matter Physics & Fluid Mechanics",
+      "affinity": "95% HIGH",
+      "lens": "Structural Coupling",
+      "rationale": "Investigates the interfacial interplay between microfluidic compartmentalization and Cell Biology.",
+      "query": "\"active matter\" \"Cell Biology\"",
+      "selected": false
+    }
+  },
+  {
+    "id": "idea_9",
+    "label": "#09 Eco-Evolutionary Feedbac...",
+    "group": "idea",
+    "shape": "dot",
+    "size": 18,
+    "color": {
+      "background": "#10b981",
+      "border": "#059669",
+      "highlight": {
+        "background": "#34d399",
+        "border": "#ffffff"
+      },
+      "hover": {
+        "background": "#34d399",
+        "border": "#ffffff"
+      }
+    },
+    "font": {
+      "color": "#a7f3d0",
+      "size": 11,
+      "face": "Inter, sans-serif",
+      "bold": false
+    },
+    "borderWidth": 1,
+    "custom_data": {
+      "category": "Generated Research Direction",
+      "index": 9,
+      "title": "Eco-Evolutionary Feedback Loops Dynamics in Cell Biology: Mechanisms of Evolutionary Stability",
+      "badge_color": "#10b981",
+      "bridge": "Evolutionary Game Dynamics & Population Ecology",
+      "faculty": "Applied Mathematics & Evolutionary Biology",
+      "affinity": "90% MED",
+      "lens": "Mechanistic Analogy",
+      "rationale": "Analyzes Cell Biology through the lens of eco-evolutionary feedback loops, mapping dynamic transitions to evolutionary stability.",
+      "query": "\"evolutionary game theory\" \"Cell Biology\"",
+      "selected": false
+    }
+  },
+  {
+    "id": "idea_10",
+    "label": "#10 Topological Boundary Pre...",
+    "group": "idea",
+    "shape": "dot",
+    "size": 18,
+    "color": {
+      "background": "#10b981",
+      "border": "#059669",
+      "highlight": {
+        "background": "#34d399",
+        "border": "#ffffff"
+      },
+      "hover": {
+        "background": "#34d399",
+        "border": "#ffffff"
+      }
+    },
+    "font": {
+      "color": "#a7f3d0",
+      "size": 11,
+      "face": "Inter, sans-serif",
+      "bold": false
+    },
+    "borderWidth": 1,
+    "custom_data": {
+      "category": "Generated Research Direction",
+      "index": 10,
+      "title": "Topological Boundary Preservation Dynamics in Cell Biology: Mechanisms of Geometric Continuity",
+      "badge_color": "#10b981",
+      "bridge": "Topological Data Analysis & Differential Geometry",
+      "faculty": "Mathematics & Theoretical Physics",
+      "affinity": "85% MED",
+      "lens": "Mechanistic Analogy",
+      "rationale": "Analyzes Cell Biology through the lens of topological boundary preservation, mapping dynamic transitions to geometric continuity.",
+      "query": "\"topological data analysis\" \"Cell Biology\"",
+      "selected": false
+    }
+  },
+  {
+    "id": "lit_foundation",
+    "label": "\ud83c\udfdb\ufe0f The Foundation\nInitial sequencing and ana...",
+    "group": "literature",
+    "shape": "star",
+    "size": 25,
+    "color": {
+      "background": "#f59e0b",
+      "border": "#fbbf24",
+      "highlight": {
+        "background": "#ffffff",
+        "border": "#fbbf24"
+      },
+      "hover": {
+        "background": "#ffffff",
+        "border": "#fbbf24"
+      }
+    },
+    "font": {
+      "color": "#ffffff",
+      "size": 12,
+      "face": "Inter, sans-serif",
+      "bold": true
+    },
+    "borderWidth": 2,
+    "custom_data": {
+      "category": "\ud83c\udfdb\ufe0f The Foundation",
+      "title": "Initial sequencing and analysis of the human genome",
+      "badge_color": "#f59e0b",
+      "authors": "Eric S. Lander, Lauren Linton, Bruce W. Birren, Chad Nusbaum, Michael C. Zody, Jennifer Baldwin, Keri Devon, Ken Dewar, Michael P. Doyle, William W. Fitzhugh, Roel Funke, Diane Gage, Katrina L. Harris, Andrew Heaford, John G. Howland, Lisa Kann, Jessica A. Lehoczky, R Paul Levine, Paul McEwan, Kevin McKernan, James C. Meldrim, Jill P. Mesirov, Cher Miranda, William Morris, Jerome W. Naylor, Christina Raymond, Mark Rosetti, Ralph Santos, Andrew Sheridan, Carrie Sougnez, Nicole Stange-Thomann, Nikola M. Stojanovi\u0107, Aravind Subramanian, Dudley Wyman, Jane Rogers, John Sulston, R. Ainscough, Stephan Beck, David Bentley, John H. Burton, Christopher Clee, Nigel Carter, Alan Coulson, Rebecca Deadman, Panos Deloukas, Andrew Dunham, Ian Dunham, Richard Durbin, Lisa French, Darren Grafham, Simon G. Gregory, Tim Hubbard, Sean Humphray, Adrienne Hunt, Matthew C. Jones, Christine Lloyd, Amanda A. McMurray, Lucy Matthews, Simon Mercer, Sarah Milne, James C. Mullikin, Andrew J. Mungall, R. W. Plumb, Mark T. Ross, R. Shownkeen, Sarah Sims, R Waterston, Richard K. Wilson, LaDeana W. Hillier, John D. McPherson, Marco A. Marra, Elaine R. Mardis, Lucinda A. Fulton, Asif Chinwalla, Kymberlie Pepin, Warren Gish, Stephanie L. Chissoe, Michael C. Wendl, Kim D. Delehaunty, Tracie L. Miner, Andrew Delehaunty, Jason Kramer, Lisa L. Cook, Robert S. Fulton, D. Johnson, Patrick Minx, Sandra W. Clifton, Trevor Hawkins, Elbert Branscomb, Paul Predki, Paul Richardson, Sarah Wenning, Tom Slezak, Norman A. Doggett, Jan\u2010Fang Cheng, Anne S. Olsen, Susan Lucas, Christopher J. Elkin, Edward C. Uberbacher, M.E. Frazier",
+      "year": "2001",
+      "venue": "Nature",
+      "citations": "24728 citations",
+      "source": "OpenAlex (Open Access)",
+      "url": "https://www.nature.com/articles/35057062.pdf",
+      "oa_url": "https://www.nature.com/articles/35057062.pdf",
+      "doi": "https://doi.org/10.1038/35057062",
+      "abstract": "The human genome holds an extraordinary trove of information about human development, physiology, medicine and evolution. Here we report the results of an international collaboration to produce and make freely available a draft sequence of the human genome. We also present an initial analysis of the data, describing some of the insights that can be gleaned from the sequence."
+    }
+  },
+  {
+    "id": "lit_frontier",
+    "label": "\u26a1 The Frontier (2024\u20132026)\nTwo new Later Stone Age si...",
+    "group": "literature",
+    "shape": "star",
+    "size": 25,
+    "color": {
+      "background": "#ff9f1c",
+      "border": "#ffd166",
+      "highlight": {
+        "background": "#ffffff",
+        "border": "#ffd166"
+      },
+      "hover": {
+        "background": "#ffffff",
+        "border": "#ffd166"
+      }
+    },
+    "font": {
+      "color": "#ffffff",
+      "size": 12,
+      "face": "Inter, sans-serif",
+      "bold": true
+    },
+    "borderWidth": 2,
+    "custom_data": {
+      "category": "\u26a1 The Frontier (2024\u20132026)",
+      "title": "Two new Later Stone Age sites from the Final Pleistocene in the Fal\u00e9m\u00e9 Valley, eastern Senegal",
+      "badge_color": "#ff9f1c",
+      "authors": "Ndiaye, Matar, Lespez, Laurent, Tribolo, Chantal, Rasse, Michel, Hadjas, Irka, Davidoux, Sarah, Huysecom, \u00c9ric, Douze, Katja",
+      "year": "2024",
+      "venue": "Monash University Research Portal (Monash University)",
+      "citations": "24104 citations",
+      "source": "OpenAlex (Open Access)",
+      "url": "https://research.monash.edu/en/publications/5b783a7c-7721-4c0f-80b9-331d0d73b4f1",
+      "oa_url": "https://research.monash.edu/en/publications/5b783a7c-7721-4c0f-80b9-331d0d73b4f1",
+      "doi": "https://doi.org/10.3929/ethz-b-000667478",
+      "abstract": "1 Instituto de Sau\u00b4de Coletiva, Universidade Federal da Bahia, Salvador, Brazil, 2 Instituto Gonc\u00b8alo Moniz, Fundac\u00b8\u00e3o Oswaldo Cruz,Ministe\u00b4 rio da Sau\u00b4de, Salvador, Brazil, 3 Department of Epidemiology of Microbial Diseases, Yale School of Public Health, New Haven, Connecticut, United States of America, 4 Hospital Geral Roberto Santos (HGRS), Salvador, Brazil, 5 Faculdade de Medicina, Universidade Federal de S\u00e3o Paulo, S\u00e3o Paulo, Brazil, 6 Faculdade de Medicina da Bahia, Universidade Federal da Bahia, Salvador, Brazil, 7 Programa de P\u00f2s-Graduac\u00b8\u00e3o em Ciencias da Saude (PPgCS) Universidade Federal da Bahia, Salvador, Brazil, 8 Departamento de Fonoaudiologia. Instituto de Ci\u00eancias da Sau\u00b4de. Universidade Federal da Bahia, Salvador, Brazil, 9 Division of Infectious Diseases and Vaccinology, School of Public Health, University of California, Berkeley, California, United States of America"
+    }
+  },
+  {
+    "id": "lit_review",
+    "label": "\ud83d\udcda The Review\nEngineering precision nano...",
+    "group": "literature",
+    "shape": "star",
+    "size": 25,
+    "color": {
+      "background": "#e63946",
+      "border": "#ff758f",
+      "highlight": {
+        "background": "#ffffff",
+        "border": "#ff758f"
+      },
+      "hover": {
+        "background": "#ffffff",
+        "border": "#ff758f"
+      }
+    },
+    "font": {
+      "color": "#ffffff",
+      "size": 12,
+      "face": "Inter, sans-serif",
+      "bold": true
+    },
+    "borderWidth": 2,
+    "custom_data": {
+      "category": "\ud83d\udcda The Review",
+      "title": "Engineering precision nanoparticles for drug delivery",
+      "badge_color": "#e63946",
+      "authors": "Michael J. Mitchell, Margaret M. Billingsley, Rebecca M. Haley, Marissa E. Wechsler, Nicholas A. Peppas, R\u00f3bert Langer",
+      "year": "2020",
+      "venue": "Nature Reviews Drug Discovery",
+      "citations": "7821 citations",
+      "source": "OpenAlex (Open Access)",
+      "url": "https://www.nature.com/articles/s41573-020-0090-8.pdf",
+      "oa_url": "https://www.nature.com/articles/s41573-020-0090-8.pdf",
+      "doi": "https://doi.org/10.1038/s41573-020-0090-8",
+      "abstract": null
+    }
+  }
+];
+    const edgesData = [
+  {
+    "from": "hub_1",
+    "to": "bridge_Synthetic_Biology___Morphogenetic_Engineering",
+    "color": {
+      "color": "rgba(0, 229, 255, 0.4)",
+      "highlight": "#00e5ff",
+      "hover": "#00e5ff"
+    },
+    "width": 2,
+    "smooth": {
+      "type": "continuous"
+    }
+  },
+  {
+    "from": "hub_1",
+    "to": "bridge_Information_Theory_in_Biological_Signalling",
+    "color": {
+      "color": "rgba(0, 229, 255, 0.4)",
+      "highlight": "#00e5ff",
+      "hover": "#00e5ff"
+    },
+    "width": 2,
+    "smooth": {
+      "type": "continuous"
+    }
+  },
+  {
+    "from": "hub_1",
+    "to": "bridge_Biophysics___Mechanobiology",
+    "color": {
+      "color": "rgba(0, 229, 255, 0.4)",
+      "highlight": "#00e5ff",
+      "hover": "#00e5ff"
+    },
+    "width": 2,
+    "smooth": {
+      "type": "continuous"
+    }
+  },
+  {
+    "from": "hub_1",
+    "to": "bridge_Stochastic_Thermodynamics_of_Living_Systems",
+    "color": {
+      "color": "rgba(0, 229, 255, 0.4)",
+      "highlight": "#00e5ff",
+      "hover": "#00e5ff"
+    },
+    "width": 2,
+    "smooth": {
+      "type": "continuous"
+    }
+  },
+  {
+    "from": "hub_1",
+    "to": "bridge_Bio_Imaging__Optical_Diffraction___Inverse_Problems",
+    "color": {
+      "color": "rgba(0, 229, 255, 0.4)",
+      "highlight": "#00e5ff",
+      "hover": "#00e5ff"
+    },
+    "width": 2,
+    "smooth": {
+      "type": "continuous"
+    }
+  },
+  {
+    "from": "hub_1",
+    "to": "bridge_Systems_Biology___Gene_Regulatory_Networks",
+    "color": {
+      "color": "rgba(0, 229, 255, 0.4)",
+      "highlight": "#00e5ff",
+      "hover": "#00e5ff"
+    },
+    "width": 2,
+    "smooth": {
+      "type": "continuous"
+    }
+  },
+  {
+    "from": "hub_1",
+    "to": "bridge_Complex_Network_Science___Nonlinear_Dynamics",
+    "color": {
+      "color": "rgba(0, 229, 255, 0.4)",
+      "highlight": "#00e5ff",
+      "hover": "#00e5ff"
+    },
+    "width": 2,
+    "smooth": {
+      "type": "continuous"
+    }
+  },
+  {
+    "from": "hub_1",
+    "to": "bridge_Active_Matter___Microfluidics",
+    "color": {
+      "color": "rgba(0, 229, 255, 0.4)",
+      "highlight": "#00e5ff",
+      "hover": "#00e5ff"
+    },
+    "width": 2,
+    "smooth": {
+      "type": "continuous"
+    }
+  },
+  {
+    "from": "hub_1",
+    "to": "bridge_Evolutionary_Game_Dynamics___Population_Ecology",
+    "color": {
+      "color": "rgba(0, 229, 255, 0.4)",
+      "highlight": "#00e5ff",
+      "hover": "#00e5ff"
+    },
+    "width": 2,
+    "smooth": {
+      "type": "continuous"
+    }
+  },
+  {
+    "from": "hub_1",
+    "to": "bridge_Topological_Data_Analysis___Differential_Geometry",
+    "color": {
+      "color": "rgba(0, 229, 255, 0.4)",
+      "highlight": "#00e5ff",
+      "hover": "#00e5ff"
+    },
+    "width": 2,
+    "smooth": {
+      "type": "continuous"
+    }
+  },
+  {
+    "from": "bridge_Synthetic_Biology___Morphogenetic_Engineering",
+    "to": "idea_1",
+    "color": {
+      "color": "rgba(0, 245, 155, 0.7)",
+      "highlight": "#00f59b"
+    },
+    "width": 3,
+    "smooth": {
+      "type": "continuous"
+    }
+  },
+  {
+    "from": "bridge_Information_Theory_in_Biological_Signalling",
+    "to": "idea_2",
+    "color": {
+      "color": "rgba(157, 78, 221, 0.4)",
+      "highlight": "#c77dff"
+    },
+    "width": 1.5,
+    "smooth": {
+      "type": "continuous"
+    }
+  },
+  {
+    "from": "bridge_Biophysics___Mechanobiology",
+    "to": "idea_3",
+    "color": {
+      "color": "rgba(157, 78, 221, 0.4)",
+      "highlight": "#c77dff"
+    },
+    "width": 1.5,
+    "smooth": {
+      "type": "continuous"
+    }
+  },
+  {
+    "from": "bridge_Stochastic_Thermodynamics_of_Living_Systems",
+    "to": "idea_4",
+    "color": {
+      "color": "rgba(157, 78, 221, 0.4)",
+      "highlight": "#c77dff"
+    },
+    "width": 1.5,
+    "smooth": {
+      "type": "continuous"
+    }
+  },
+  {
+    "from": "bridge_Bio_Imaging__Optical_Diffraction___Inverse_Problems",
+    "to": "idea_5",
+    "color": {
+      "color": "rgba(157, 78, 221, 0.4)",
+      "highlight": "#c77dff"
+    },
+    "width": 1.5,
+    "smooth": {
+      "type": "continuous"
+    }
+  },
+  {
+    "from": "bridge_Systems_Biology___Gene_Regulatory_Networks",
+    "to": "idea_6",
+    "color": {
+      "color": "rgba(157, 78, 221, 0.4)",
+      "highlight": "#c77dff"
+    },
+    "width": 1.5,
+    "smooth": {
+      "type": "continuous"
+    }
+  },
+  {
+    "from": "bridge_Complex_Network_Science___Nonlinear_Dynamics",
+    "to": "idea_7",
+    "color": {
+      "color": "rgba(157, 78, 221, 0.4)",
+      "highlight": "#c77dff"
+    },
+    "width": 1.5,
+    "smooth": {
+      "type": "continuous"
+    }
+  },
+  {
+    "from": "bridge_Active_Matter___Microfluidics",
+    "to": "idea_8",
+    "color": {
+      "color": "rgba(157, 78, 221, 0.4)",
+      "highlight": "#c77dff"
+    },
+    "width": 1.5,
+    "smooth": {
+      "type": "continuous"
+    }
+  },
+  {
+    "from": "bridge_Evolutionary_Game_Dynamics___Population_Ecology",
+    "to": "idea_9",
+    "color": {
+      "color": "rgba(157, 78, 221, 0.4)",
+      "highlight": "#c77dff"
+    },
+    "width": 1.5,
+    "smooth": {
+      "type": "continuous"
+    }
+  },
+  {
+    "from": "bridge_Topological_Data_Analysis___Differential_Geometry",
+    "to": "idea_10",
+    "color": {
+      "color": "rgba(157, 78, 221, 0.4)",
+      "highlight": "#c77dff"
+    },
+    "width": 1.5,
+    "smooth": {
+      "type": "continuous"
+    }
+  },
+  {
+    "from": "idea_1",
+    "to": "lit_foundation",
+    "color": {
+      "color": "#f59e0b",
+      "highlight": "#ffffff"
+    },
+    "width": 3,
+    "dashes": [
+      6,
+      4
+    ],
+    "label": "Foundation Match",
+    "font": {
+      "color": "#fbbf24",
+      "size": 10,
+      "strokeWidth": 0
+    }
+  },
+  {
+    "from": "idea_1",
+    "to": "lit_frontier",
+    "color": {
+      "color": "#ff9f1c",
+      "highlight": "#ffffff"
+    },
+    "width": 3,
+    "dashes": [
+      6,
+      4
+    ],
+    "label": "Frontier Match",
+    "font": {
+      "color": "#ffd166",
+      "size": 10,
+      "strokeWidth": 0
+    }
+  },
+  {
+    "from": "idea_1",
+    "to": "lit_review",
+    "color": {
+      "color": "#e63946",
+      "highlight": "#ffffff"
+    },
+    "width": 3,
+    "dashes": [
+      6,
+      4
+    ],
+    "label": "Review Match",
+    "font": {
+      "color": "#ff758f",
+      "size": 10,
+      "strokeWidth": 0
+    }
+  }
+];
+
+    const container = document.getElementById('network-container');
+    const nodes = new vis.DataSet(nodesData);
+    const edges = new vis.DataSet(edgesData);
+
+    const data = { nodes: nodes, edges: edges };
+    const options = {
+      nodes: {
+        borderWidth: 2,
+        shadow: { enabled: true, color: 'rgba(0,0,0,0.6)', size: 10, x: 0, y: 4 }
+      },
+      edges: {
+        smooth: { type: 'continuous', roundness: 0.35 },
+        hoverWidth: 2.5
+      },
+      physics: {
+        solver: 'forceAtlas2Based',
+        forceAtlas2Based: {
+          gravitationalConstant: -75,
+          centralGravity: 0.015,
+          springLength: 135,
+          springConstant: 0.08,
+          damping: 0.45,
+          avoidOverlap: 0.7
+        },
+        stabilization: { iterations: 180, fit: true }
+      },
+      interaction: {
+        hover: true,
+        tooltipDelay: 100,
+        navigationButtons: true,
+        keyboard: true
+      }
+    };
+
+    const network = new vis.Network(container, data, options);
+
+    function renderInspector(c) {
+      if (!c) return;
+      const card = document.getElementById('inspector-content');
+      let html = `<div class="node-category-badge" style="background:${c.badge_color || '#3b82f6'}">${c.category}</div>`;
+      html += `<div class="node-title">${c.title}</div>`;
+      html += `<div class="node-meta-grid">`;
+
+      if (c.authors) html += `<div class="meta-row"><span class="meta-label">Authors:</span><span class="meta-value">${c.authors}</span></div>`;
+      if (c.year && c.year !== 'N/A') html += `<div class="meta-row"><span class="meta-label">Year:</span><span class="meta-value">${c.year}</span></div>`;
+      if (c.venue && c.venue !== 'Academic Publication') html += `<div class="meta-row"><span class="meta-label">Venue:</span><span class="meta-value">${c.venue}</span></div>`;
+      if (c.citations) html += `<div class="meta-row"><span class="meta-label">Impact:</span><span class="meta-value" style="color:#fbbf24; font-weight:600;">⚡ ${c.citations}</span></div>`;
+      if (c.source) html += `<div class="meta-row"><span class="meta-label">Source:</span><span class="meta-value">${c.source}</span></div>`;
+      if (c.faculty) html += `<div class="meta-row"><span class="meta-label">Faculty:</span><span class="meta-value">${c.faculty}</span></div>`;
+      if (c.bridge) html += `<div class="meta-row"><span class="meta-label">Bridge:</span><span class="meta-value">${c.bridge}</span></div>`;
+      if (c.affinity) html += `<div class="meta-row"><span class="meta-label">Affinity:</span><span class="meta-value" style="color:#34d399; font-weight:700;">${c.affinity}</span></div>`;
+      if (c.lens) html += `<div class="meta-row"><span class="meta-label">Epistemic Lens:</span><span class="meta-value">${c.lens}</span></div>`;
+      html += `</div>`;
+
+      if (c.url || c.oa_url) {
+        html += `<div class="btn-action-row">`;
+        if (c.oa_url) {
+          html += `<a href="${c.oa_url}" target="_blank" class="action-link action-oa">📄 Direct Open Access PDF</a>`;
+        }
+        if (c.url && c.url !== 'https://scholar.google.com') {
+          html += `<a href="${c.url}" target="_blank" class="action-link action-doi">🔗 Publication Landing Page</a>`;
+        }
+        html += `</div>`;
+      }
+
+      if (c.abstract && c.abstract !== 'No abstract snippet available.') {
+        html += `<div class="content-box"><div class="content-box-title">Abstract Snippet</div>"${c.abstract}"</div>`;
+      }
+      if (c.rationale) {
+        html += `<div class="content-box"><div class="content-box-title">Conceptual Blending Formulation</div>${c.rationale}</div>`;
+      }
+      if (c.description) {
+        html += `<div class="content-box"><div class="content-box-title">Overview</div>${c.description}</div>`;
+      }
+      if (c.query) {
+        html += `<div class="content-box" style="font-family:'JetBrains Mono',monospace; font-size:11px;"><div class="content-box-title">Search Query</div>${c.query}</div>`;
+      }
+
+      card.innerHTML = html;
+    }
+
+    network.on('click', function(params) {
+      if (params.nodes.length > 0) {
+        const nodeId = params.nodes[0];
+        const node = nodes.get(nodeId);
+        if (node && node.custom_data) renderInspector(node.custom_data);
+      }
+    });
+
+    network.on('hoverNode', function(params) {
+      const node = nodes.get(params.node);
+      if (node && node.custom_data) renderInspector(node.custom_data);
+    });
+
+    let physicsRunning = true;
+    const btnPhys = document.getElementById('btn-physics');
+    btnPhys.addEventListener('click', () => {
+      physicsRunning = !physicsRunning;
+      network.setOptions({ physics: { enabled: physicsRunning } });
+      btnPhys.innerText = physicsRunning ? '⏸ Freeze' : '▶ Run Physics';
+    });
+
+    document.getElementById('btn-fit').addEventListener('click', () => {
+      network.fit({ animation: { duration: 600, easingFunction: 'easeInOutQuad' } });
+    });
+
+    const searchInput = document.getElementById('search-input');
+    searchInput.addEventListener('input', (e) => {
+      const q = e.target.value.toLowerCase().trim();
+      if (!q) {
+        nodes.forEach(n => nodes.update({ id: n.id, opacity: 1 }));
+        return;
+      }
+      let firstMatch = null;
+      nodes.forEach(n => {
+        const title = (n.custom_data?.title || n.label || '').toLowerCase();
+        const cat = (n.custom_data?.category || '').toLowerCase();
+        const auth = (n.custom_data?.authors || '').toLowerCase();
+        const bridge = (n.custom_data?.bridge || '').toLowerCase();
+        const match = title.includes(q) || cat.includes(q) || auth.includes(q) || bridge.includes(q);
+        if (match && !firstMatch) firstMatch = n.id;
+        nodes.update({ id: n.id, opacity: match ? 1 : 0.25 });
+      });
+      if (firstMatch) {
+        network.focus(firstMatch, { scale: 1.2, animation: { duration: 400 } });
+        const matchedNode = nodes.get(firstMatch);
+        if (matchedNode?.custom_data) renderInspector(matchedNode.custom_data);
+      }
+    });
+  </script>
+</body>
+</html>
