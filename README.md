@@ -2,13 +2,14 @@
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![Zero-Token Architecture](https://img.shields.io/badge/LLM%20Tokens-0%20(Free)-success.svg)](https://github.com/)
+[![FastEmbed ONNX](https://img.shields.io/badge/Vectors-FastEmbed%20ONNX-38bdf8.svg)](https://qdrant.github.io/fastembed/)
 [![OpenAlex API](https://img.shields.io/badge/OpenAlex-Indexed-orange.svg)](https://openalex.org/)
 [![Crossref Failover](https://img.shields.io/badge/Crossref-API%20Failover-yellow.svg)](https://www.crossref.org/)
 [![Vis.js Physics](https://img.shields.io/badge/Topology-Vis.js%20Force--Directed-blueviolet.svg)](https://visjs.org/)
 [![Streamlit UI](https://img.shields.io/badge/Web%20App-Streamlit-ff4b4b.svg)](https://streamlit.io/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-> **Algorithmic Cross-Disciplinary Research Engine**: Synthesizes high-affinity crossover scientific directions without paid LLM tokens, fetches 3-dimensional academic literature triads (*Foundation, Frontier 2024–2026, Review*), and maps topological knowledge networks in real time.
+> **Algorithmic Cross-Disciplinary Research Engine**: Synthesizes high-affinity crossover scientific directions without paid LLM tokens, computes local vector similarities via FastEmbed ONNX with Goldilocks sweet-spot scoring, fetches 3-dimensional academic literature triads (*Foundation, Frontier 2024–2026, Review*), and maps topological knowledge networks in real time.
 
 ---
 
@@ -16,9 +17,10 @@
 - [Why Science Expander?](#-why-science-expander)
 - [System Architecture](#-system-architecture)
   - [1. Conceptual Blending & Domain Affinity Matrix](#1-conceptual-blending--domain-affinity-matrix)
-  - [2. Tri-Axial Literature Retrieval (3D Academic Slice)](#2-tri-axial-literature-retrieval-3d-academic-slice)
-  - [3. Zero-Token Multilingual Bridge (RU ↔ EN)](#3-zero-token-multilingual-bridge-ru--en)
-  - [4. Interactive Knowledge Topology (Vis.js Physics)](#4-interactive-knowledge-topology-visjs-physics)
+  - [2. Local Vector Intelligence via FastEmbed ONNX (Semantic Corridor Engine)](#2-local-vector-intelligence-via-fastembed-onnx-semantic-corridor-engine)
+  - [3. Tri-Axial Literature Retrieval (3D Academic Slice)](#3-tri-axial-literature-retrieval-3d-academic-slice)
+  - [4. Zero-Token Multilingual Bridge (RU ↔ EN)](#4-zero-token-multilingual-bridge-ru--en)
+  - [5. Interactive Knowledge Topology (Vis.js Physics)](#5-interactive-knowledge-topology-visjs-physics)
 - [Quickstart Installation](#-quickstart-installation)
 - [Streamlit Web Application](#-streamlit-web-application)
 - [Command-Line Interface (CLI)](#-command-line-interface-cli)
@@ -100,7 +102,18 @@ Topics are algorithmically categorized into core scientific faculties (`BIOLOGY`
 
 Each pair is evaluated against the **Domain Affinity Matrix**. Unrelated combinations (*e.g., cell biology with metamaterials transformation optics*) are automatically penalized and suppressed.
 
-### 2. Tri-Axial Literature Retrieval (3D Academic Slice)
+### 2. Local Vector Intelligence via FastEmbed ONNX (Semantic Corridor Engine)
+Science Expander integrates a local ONNX vector scoring layer powered by `fastembed` (`BAAI/bge-small-en-v1.5`):
+- **100% Local Inference**: Runs directly on your CPU/GPU using ONNX Runtime with zero external API calls, token metering, or data leakage.
+- **In-Memory Cache**: Seed and domain representations are cached for sub-millisecond inference ($< 1$ ms) after warm-up.
+- **Pairwise Cosine Similarity**: Evaluates semantic alignment $\cos(\mathbf{u}, \mathbf{v}) = \frac{\mathbf{u} \cdot \mathbf{v}}{\|\mathbf{u}\|_2 \|\mathbf{v}\|_2}$.
+- **Interdisciplinary Goldilocks Sweet Spot ($\mathcal{S}_{\text{Goldilocks}}$)**:
+  - **Sweet Spot ($0.35 \le s \le 0.65$)**: Peak score ($\sim 1.0$) for fertile interdisciplinary ground where conceptual distance enables genuine scientific breakthroughs.
+  - **Trivial Overlap ($s > 0.80$)**: Penalized score ($\le 0.35$) for semantic redundancy or disciplinary tautology.
+  - **Conceptual Disconnect ($s < 0.20$)**: Penalized score ($\le 0.20$) for pseudo-scientific or incoherent pairings.
+- **Resilient Fallback**: If ONNX weights are unavailable or memory is constrained, the system degrades seamlessly to pure rule-based ontology heuristics without crashing.
+
+### 3. Tri-Axial Literature Retrieval (3D Academic Slice)
 Instead of retrieving a single random paper, Science Expander pulls a 3-dimensional academic triad for any chosen topic:
 - 🏛️ **The Foundation (Фундамент)**: Landmark paper with the highest historical citation impact.
 - ⚡ **The Frontier (Фронтир, 2024–2026)**: Cutting-edge recent paper or preprint strictly sorted by `relevance_score:desc` to ensure tight semantic alignment.
@@ -118,17 +131,18 @@ Instead of retrieving a single random paper, Science Expander pulls a 3-dimensio
 ```
 If an Open Access PDF is indexed, Science Expander extracts direct download URLs (`open_access.oa_url`) automatically.
 
-### 3. Zero-Token Multilingual Bridge (RU ↔ EN)
+### 4. Zero-Token Multilingual Bridge (RU ↔ EN)
 - **Automatic Language Detection**: Detects Cyrillic characters via Unicode regex (`[\u0400-\u04FF]`).
 - **Free Translation**: Powered by `deep-translator` with direct Google GTX endpoint failover (zero API keys, zero fees).
 - **Bilingual Surface**: Input seeds are presented bilingually across the Rich TUI, Streamlit Web App, Research Briefs, and Knowledge Graph nodes (*e.g., `Клеточная биология (Cell Biology)`*).
 
-### 4. Interactive Knowledge Topology (Vis.js Physics)
+### 5. Interactive Knowledge Topology (Vis.js Physics)
 Generates standalone, self-contained HTML graph visualizations rendered via Vis.js:
 - 🔷 **Neon Cyan Hexagons**: Core seed topics (Hubs).
 - 🟣 **Purple Diamonds**: Interdisciplinary bridge domains.
 - 🟢 **Emerald Dots**: Generated research directions with affinity badges.
 - ⭐ **Gold/Amber Stars**: Literature triad publications dynamically linked to selected topics.
+- 〰️ **Vector-Weighted Edges**: Edge thickness and hover tooltips mathematically reflect cosine similarities between nodes.
 
 ---
 

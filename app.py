@@ -18,6 +18,7 @@ import streamlit.components.v1 as components
 from science_expander import (
     MultilingualBridge,
     TopicCrossBreeder,
+    SemanticCorridorEngine,
     ScholarLiteratureClient,
     OpenAlexClient,
     GeneratedTopic,
@@ -204,6 +205,14 @@ def render_app():
         st.caption("Zero-Token Interdisciplinary Research Engine")
 
         st.markdown("---")
+        st.markdown("#### 🧠 Local Vector Intelligence")
+        vec_engine = SemanticCorridorEngine.get_instance()
+        if vec_engine.is_available:
+            st.success("🟢 ONNX FastEmbed Active\n`bge-small-en-v1.5`")
+        else:
+            st.warning("🟡 Rule-Based Engine\nFallback Active")
+
+        st.markdown("---")
         st.markdown("#### ⚙️ Engine Parameters")
         topic_count = st.slider("Discovery Yield (Topics)", min_value=5, max_value=14, value=10, step=1)
 
@@ -212,11 +221,12 @@ def render_app():
         st.markdown(
             """
             - **Zero LLM Token Cost**: 100% deterministic conceptual blending ontology.
+            - **FastEmbed ONNX**: Local semantic cosine similarity & Goldilocks corridor scoring.
             - **Domain Affinity Matrix**: 14 sanitized scientific faculties; zero deep learning buzzwords.
             - **Tri-Axial Retrieval**: Landmark Foundation, Frontier 2024–2026, and Review Synthesis.
             - **Resilient Fallback**: Google Scholar ➔ OpenAlex (`relevance_score:desc`) ➔ Crossref API.
             - **Multilingual Bridge**: Zero-cost Russian (RU ↔ EN) academic translation layer.
-            - **Interactive Topology**: Vis.js force-directed physics graph.
+            - **Interactive Topology**: Vis.js force-directed physics graph with vector-weighted edges.
             """
         )
 
@@ -340,6 +350,7 @@ def render_app():
                         <div style="margin-bottom: 0.4rem;">
                             <span class="meta-pill">🏛️ <strong>Bridge Domain:</strong> {top.domain.name}</span>
                             <span class="meta-pill">🔍 <strong>Methodological Lens:</strong> {top.operator_name}</span>
+                            <span class="meta-pill">🧭 <strong>Vector Sim:</strong> {f'{top.cosine_similarity:.2f} ({top.vector_zone})' if top.cosine_similarity is not None else 'Rule-Based'}</span>
                         </div>
                         <div style="color: #94a3b8; font-size: 0.85rem; font-family: monospace;">
                             <strong>Target Literature Query:</strong> <code>{top.primary_query}</code>
@@ -549,6 +560,9 @@ def render_app():
                         "rationale": t.rationale,
                         "bridge_domain": t.domain.name,
                         "affinity": t.affinity,
+                        "cosine_similarity": t.cosine_similarity,
+                        "goldilocks_score": t.goldilocks_score,
+                        "vector_zone": t.vector_zone,
                         "primary_query": t.primary_query,
                         "operator_name": t.operator_name,
                     }

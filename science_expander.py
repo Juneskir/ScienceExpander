@@ -23,6 +23,11 @@ from enum import Enum
 from typing import List, Dict, Optional, Tuple, Any, Set
 
 try:
+    import numpy as np
+except ImportError:
+    np = None
+
+try:
     from scholarly import scholarly
 except ImportError as e:
     sys.stderr.write(
@@ -811,6 +816,9 @@ class GeneratedTopic:
     fallback_query: str
     display_primary_topic: Optional[str] = None
     display_secondary_topic: Optional[str] = None
+    cosine_similarity: Optional[float] = None
+    goldilocks_score: Optional[float] = None
+    vector_zone: Optional[str] = None
 
 
 def clean_topic_name(topic: str) -> str:
@@ -834,15 +842,126 @@ def extract_core_keywords(text: str) -> List[str]:
     return filtered[:3] if filtered else words[:2]
 
 
+# =====================================================================
+# Local Vector Intelligence via FastEmbed ONNX (Semantic Corridor Engine)
+# =====================================================================
+class SemanticCorridorEngine:
+    """
+    Autonomous, local vector scoring engine utilizing FastEmbed ONNX.
+    Computes pairwise semantic cosine similarities and evaluates candidate topic blends
+    using the Interdisciplinary Goldilocks Sweet Spot scoring curve.
+    """
+    _instance: Optional["SemanticCorridorEngine"] = None
+
+    def __init__(self, model_name: str = "BAAI/bge-small-en-v1.5"):
+        self.model_name = model_name
+        self.model = None
+        self.is_available = False
+        self._cache: Dict[str, Any] = {}
+        self._init_engine()
+
+    @classmethod
+    def get_instance(cls, model_name: str = "BAAI/bge-small-en-v1.5") -> "SemanticCorridorEngine":
+        if cls._instance is None:
+            cls._instance = cls(model_name=model_name)
+        return cls._instance
+
+    def _init_engine(self) -> None:
+        """Initialize ONNX TextEmbedding model with graceful fallback."""
+        if np is None:
+            self.is_available = False
+            return
+        try:
+            from fastembed import TextEmbedding
+            self.model = TextEmbedding(model_name=self.model_name)
+            self.is_available = True
+        except Exception:
+            self.model = None
+            self.is_available = False
+
+    def embed(self, text: str) -> Optional[Any]:
+        """Compute normalized vector embedding for input text with caching (< 10ms)."""
+        if not self.is_available or self.model is None or np is None:
+            return None
+        cleaned = text.strip().lower()
+        if not cleaned:
+            return None
+        if cleaned in self._cache:
+            return self._cache[cleaned]
+        try:
+            generator = self.model.embed([cleaned])
+            vec = next(generator)
+            arr = np.array(vec, dtype=np.float32)
+            self._cache[cleaned] = arr
+            return arr
+        except Exception:
+            return None
+
+    @staticmethod
+    def cosine_similarity(u: Optional[Any], v: Optional[Any]) -> float:
+        """Calculate pairwise cosine similarity: cos(u, v) = (u . v) / (||u|| ||v||)."""
+        if u is None or v is None or np is None:
+            return 0.0
+        try:
+            norm_u = float(np.linalg.norm(u))
+            norm_v = float(np.linalg.norm(v))
+            if norm_u == 0.0 or norm_v == 0.0:
+                return 0.0
+            return float(np.dot(u, v) / (norm_u * norm_v))
+        except Exception:
+            return 0.0
+
+    @staticmethod
+    def calculate_goldilocks_score(similarity: float) -> float:
+        """
+        Interdisciplinary Goldilocks Sweet Spot Function:
+        - Sweet spot [0.35, 0.65]: Peak score (~1.0)
+        - Penalize trivial overlap (s > 0.80, lack of novelty)
+        - Penalize extreme disconnect (s < 0.20, conceptual nonsense)
+        """
+        s = max(-1.0, min(1.0, similarity))
+        if 0.40 <= s <= 0.60:
+            return 1.0
+        elif 0.35 <= s < 0.40:
+            return round(0.90 + (s - 0.35) * (0.10 / 0.05), 4)
+        elif 0.60 < s <= 0.65:
+            return round(1.0 - (s - 0.60) * (0.10 / 0.05), 4)
+        elif 0.20 <= s < 0.35:
+            return round(0.30 + (s - 0.20) * (0.60 / 0.15), 4)
+        elif 0.65 < s <= 0.80:
+            return round(0.90 - (s - 0.65) * (0.50 / 0.15), 4)
+        elif s > 0.80:
+            return round(max(0.05, 0.40 - (s - 0.80) * (0.35 / 0.20)), 4)
+        else:
+            if s <= 0.0:
+                return 0.0
+            return round(s * (0.30 / 0.20), 4)
+
+    @staticmethod
+    def get_vector_zone(similarity: float) -> str:
+        """Categorize semantic corridor into descriptive interdisciplinary zones."""
+        if 0.35 <= similarity <= 0.65:
+            return "Sweet Spot"
+        elif 0.65 < similarity <= 0.80:
+            return "Moderate Overlap"
+        elif similarity > 0.80:
+            return "Trivial Overlap"
+        elif 0.20 <= similarity < 0.35:
+            return "Distant Analogy"
+        else:
+            return "Conceptual Disconnect"
+
+
 class TopicCrossBreeder:
     """
-    Algorithmic cross-breeding engine with Domain Affinity filtering.
+    Algorithmic cross-breeding engine with Domain Affinity filtering and Local Vector Intelligence.
     Blends input scientific topics with compatible interdisciplinary domains
     via formal epistemic transfer operators (without paid LLMs).
     """
 
-    def __init__(self, seed: Optional[int] = None):
+    def __init__(self, seed: Optional[int] = None, vector_engine: Optional[SemanticCorridorEngine] = None):
         self.rng = random.Random(seed)
+        self.vector_engine = vector_engine or SemanticCorridorEngine.get_instance()
 
     def cross_breed(self, topics: List[str], count: int = 10) -> List[GeneratedTopic]:
         if not topics:
@@ -1014,6 +1133,23 @@ class TopicCrossBreeder:
             primary_query = f'"{domain_kw}" "{primary_topic}"'
             fallback_query = f'"{domain_alt}" "{primary_topic}"'
 
+        # Autonomous Vector Scoring via FastEmbed ONNX
+        cos_sim = None
+        goldilocks = None
+        zone = None
+        if self.vector_engine and self.vector_engine.is_available:
+            try:
+                u = self.vector_engine.embed(primary_topic)
+                v = self.vector_engine.embed(f"{domain.name}: {', '.join(domain.methods[:2])}")
+                if u is not None and v is not None:
+                    cos_sim = round(self.vector_engine.cosine_similarity(u, v), 3)
+                    goldilocks = round(self.vector_engine.calculate_goldilocks_score(cos_sim), 3)
+                    zone = self.vector_engine.get_vector_zone(cos_sim)
+            except Exception:
+                cos_sim = None
+                goldilocks = None
+                zone = None
+
         return GeneratedTopic(
             index=0,
             title=title,
@@ -1026,7 +1162,10 @@ class TopicCrossBreeder:
             primary_query=primary_query,
             fallback_query=fallback_query,
             display_primary_topic=display_primary_topic or primary_topic,
-            display_secondary_topic=display_secondary_topic or secondary_topic
+            display_secondary_topic=display_secondary_topic or secondary_topic,
+            cosine_similarity=cos_sim,
+            goldilocks_score=goldilocks,
+            vector_zone=zone
         )
 
     def _select_diverse(
@@ -1040,10 +1179,16 @@ class TopicCrossBreeder:
         used_domains: Set[str] = set()
         used_operators: Dict[str, int] = {}
 
-        # Sort candidates primarily by affinity (descending) with deterministic random tie-breaking
+        # Sort candidates by composite of domain affinity and Goldilocks vector sweet spot
         shuffled = list(candidates)
         self.rng.shuffle(shuffled)
-        shuffled.sort(key=lambda c: c.affinity, reverse=True)
+        def rank_score(c: GeneratedTopic) -> float:
+            base = c.affinity
+            if c.goldilocks_score is not None:
+                return 0.7 * base + 0.3 * c.goldilocks_score
+            return base
+
+        shuffled.sort(key=rank_score, reverse=True)
 
         # Priority 1: If multiple inputs, ensure at least 1-2 Dual-Topic Syntheses
         if has_multiple_inputs:
@@ -2105,7 +2250,7 @@ def generate_knowledge_graph(
             })
 
     # Edges Construction
-    # Hub -> Bridge
+    # Hub -> Bridge (Edge thickness & tooltip reflects cosine similarity)
     connected_bridges = set()
     for t in all_topics:
         h_id = hub_ids.get(t.display_primary_topic) or hub_ids.get(t.primary_topic) or list(hub_ids.values())[0]
@@ -2113,27 +2258,36 @@ def generate_knowledge_graph(
         pair = (h_id, b_id)
         if pair not in connected_bridges:
             connected_bridges.add(pair)
+            sim_val = t.cosine_similarity if t.cosine_similarity is not None else 0.5
+            e_width = max(1.5, min(6.0, round(sim_val * 6, 1)))
             edges.append({
                 "from": h_id,
                 "to": b_id,
-                "color": {"color": "rgba(0, 229, 255, 0.4)", "highlight": "#00e5ff", "hover": "#00e5ff"},
-                "width": 2,
+                "color": {"color": "rgba(0, 229, 255, 0.45)", "highlight": "#00e5ff", "hover": "#00e5ff"},
+                "width": e_width,
+                "title": f"Cosine Similarity: {sim_val:.2f} ({t.vector_zone or 'Bridge'})",
+                "value": round(sim_val, 2),
                 "smooth": {"type": "continuous"}
             })
 
-    # Bridge -> Idea
+    # Bridge -> Idea (Edge thickness reflects cosine similarity & selection)
     for t in all_topics:
         b_id = bridge_ids[t.domain.name]
         i_id = f"idea_{t.index}"
         is_sel = (t.index == topic.index)
+        sim_val = t.cosine_similarity if t.cosine_similarity is not None else 0.5
+        base_w = (sim_val * 8) if is_sel else (sim_val * 4.5)
+        e_width = max(1.5, min(8.0, round(base_w, 1)))
         edges.append({
             "from": b_id,
             "to": i_id,
             "color": {
-                "color": "rgba(0, 245, 155, 0.7)" if is_sel else "rgba(157, 78, 221, 0.4)",
+                "color": "rgba(0, 245, 155, 0.75)" if is_sel else "rgba(157, 78, 221, 0.45)",
                 "highlight": "#00f59b" if is_sel else "#c77dff"
             },
-            "width": 3 if is_sel else 1.5,
+            "width": e_width,
+            "title": f"Cosine Sim: {sim_val:.2f} ({t.vector_zone or 'Synthesized Idea'})",
+            "value": round(sim_val, 2),
             "smooth": {"type": "continuous"}
         })
 
@@ -2207,10 +2361,11 @@ def display_topics(topics: List[GeneratedTopic]) -> None:
             show_lines=True
         )
         table.add_column("#", style="bold green", justify="center", width=4)
-        table.add_column("Topic & Conceptual Blend", style="bold white", min_width=32)
-        table.add_column("Bridge Domain", style="magenta", min_width=20)
-        table.add_column("Affinity", justify="center", min_width=12)
-        table.add_column("Methodological Lens", style="cyan", min_width=20)
+        table.add_column("Topic & Conceptual Blend", style="bold white", min_width=30)
+        table.add_column("Bridge Domain", style="magenta", min_width=18)
+        table.add_column("Affinity", justify="center", min_width=10)
+        table.add_column("Vector Affinity", justify="center", min_width=16)
+        table.add_column("Methodological Lens", style="cyan", min_width=18)
 
         for t in topics:
             aff_pct = int(t.affinity * 100)
@@ -2220,6 +2375,18 @@ def display_topics(topics: List[GeneratedTopic]) -> None:
                 badge = f"[bold yellow]{aff_pct}% MED[/]"
             else:
                 badge = f"[bold red]{aff_pct}% LOW[/]"
+
+            if t.cosine_similarity is not None:
+                sim_str = f"Sim: {t.cosine_similarity:.2f}"
+                zone = t.vector_zone or "Vector"
+                if zone == "Sweet Spot":
+                    vec_badge = f"{sim_str}\n[bold green][{zone}][/]"
+                elif zone in ("Moderate Overlap", "Distant Analogy"):
+                    vec_badge = f"{sim_str}\n[bold yellow][{zone}][/]"
+                else:
+                    vec_badge = f"{sim_str}\n[bold red][{zone}][/]"
+            else:
+                vec_badge = "[dim]Rule-Based[/]"
 
             disp_p = t.display_primary_topic or t.primary_topic
             disp_s = t.display_secondary_topic or t.secondary_topic
@@ -2236,6 +2403,7 @@ def display_topics(topics: List[GeneratedTopic]) -> None:
                 topic_cell,
                 bridge_cell,
                 badge,
+                vec_badge,
                 lens_cell
             )
 
@@ -2259,7 +2427,8 @@ def display_topics(topics: List[GeneratedTopic]) -> None:
             
             aff_pct = int(t.affinity * 100)
             aff_color = Style.GREEN if aff_pct >= 85 else Style.YELLOW
-            print(f"     {color('Bridge:', Style.CYAN)} {source_repr} ↔ {color(t.domain.name, Style.YELLOW)}  [{color(f'Affinity: {aff_pct}%', aff_color)}]")
+            vec_info = f"Vector: Sim {t.cosine_similarity:.2f} ({t.vector_zone})" if t.cosine_similarity is not None else "Rule-Based"
+            print(f"     {color('Bridge:', Style.CYAN)} {source_repr} ↔ {color(t.domain.name, Style.YELLOW)}  [{color(f'Affinity: {aff_pct}%', aff_color)}] [{color(vec_info, Style.GREEN)}]")
             print(f"     {color('Lens  :', Style.MAGENTA)} {t.operator_name} | {color(t.rationale, Style.DIM)}")
             print(f"     {color('Query :', Style.DIM)} {t.primary_query}")
             print()
@@ -2589,6 +2758,9 @@ Examples:
                     "lens": t.operator_name,
                     "rationale": t.rationale,
                     "affinity": t.affinity,
+                    "cosine_similarity": t.cosine_similarity,
+                    "goldilocks_score": t.goldilocks_score,
+                    "vector_zone": t.vector_zone,
                     "primary_query": t.primary_query,
                     "fallback_query": t.fallback_query
                 }

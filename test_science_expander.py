@@ -39,6 +39,7 @@ from science_expander import (
     save_knowledge_graph,
     is_same_paper,
     DOMAINS,
+    SemanticCorridorEngine,
 )
 
 
@@ -664,6 +665,160 @@ class TestCLIExecution(unittest.TestCase):
         self.assertTrue(any("Клеточная биология" in bt for bt in data["bilingual_topics"]))
         self.assertIn("display_primary_topic", data["generated_topics"][0])
         self.assertIn("Клеточная биология", data["generated_topics"][0]["display_primary_topic"])
+
+
+class TestStreamlitApp(unittest.TestCase):
+    """Verifies the Streamlit Web Application components and execution helpers."""
+
+    def test_streamlit_app_import(self):
+        """Verify that app.py can be cleanly imported without errors."""
+        import app
+        self.assertTrue(hasattr(app, "run_cross_breeding_core"))
+        self.assertTrue(hasattr(app, "compute_display_seeds"))
+        self.assertTrue(hasattr(app, "render_app"))
+
+    def test_compute_display_seeds(self):
+        """Verify bilingual and English seed label computation in app.py."""
+        import app
+        en_seeds = app.compute_display_seeds(["Cell Biology", "Quantum Physics"])
+        self.assertEqual(en_seeds, ["Cell Biology", "Quantum Physics"])
+
+        ru_seeds = app.compute_display_seeds(["Клеточная биология"])
+        self.assertEqual(len(ru_seeds), 1)
+        self.assertIn("Клеточная биология", ru_seeds[0])
+        self.assertIn("Cell Biology", ru_seeds[0])
+
+    def test_run_cross_breeding_core_english(self):
+        """Verify core synthesis in app.py with English topics."""
+        import app
+        raw_s, disp_s, topics, g_html = app.run_cross_breeding_core("Cell Biology", count=5)
+        self.assertEqual(raw_s, ["Cell Biology"])
+        self.assertEqual(disp_s, ["Cell Biology"])
+        self.assertEqual(len(topics), 5)
+        self.assertTrue(g_html.startswith("<!DOCTYPE html>"))
+        self.assertIn("vis-network", g_html)
+
+    def test_run_cross_breeding_core_bilingual(self):
+        """Verify core synthesis in app.py with Russian topics."""
+        import app
+        raw_s, disp_s, topics, g_html = app.run_cross_breeding_core("Клеточная биология", count=5)
+        self.assertEqual(raw_s, ["Клеточная биология"])
+        self.assertIn("Клеточная биология", disp_s[0])
+        self.assertIn("Cell Biology", disp_s[0])
+        self.assertEqual(len(topics), 5)
+        self.assertIn("Клеточная биология", g_html)
+
+
+class TestSemanticCorridorEngine(unittest.TestCase):
+    """Verifies local vector intelligence, ONNX embeddings, cosine math, and Goldilocks scoring."""
+
+    def test_cosine_similarity_math(self):
+        """Verify vector cosine similarity calculation across canonical geometric cases."""
+        import numpy as np
+        # 1. Identical vectors
+        u = np.array([1.0, 2.0, 3.0], dtype=np.float32)
+        self.assertAlmostEqual(SemanticCorridorEngine.cosine_similarity(u, u), 1.0, places=5)
+
+        # 2. Orthogonal vectors
+        v_orth = np.array([-2.0, 1.0, 0.0], dtype=np.float32)
+        self.assertAlmostEqual(SemanticCorridorEngine.cosine_similarity(u, v_orth), 0.0, places=5)
+
+        # 3. Parallel scaled vectors
+        v_scaled = np.array([2.0, 4.0, 6.0], dtype=np.float32)
+        self.assertAlmostEqual(SemanticCorridorEngine.cosine_similarity(u, v_scaled), 1.0, places=5)
+
+        # 4. Zero and None vectors
+        v_zero = np.array([0.0, 0.0, 0.0], dtype=np.float32)
+        self.assertEqual(SemanticCorridorEngine.cosine_similarity(v_zero, u), 0.0)
+        self.assertEqual(SemanticCorridorEngine.cosine_similarity(None, u), 0.0)
+        self.assertEqual(SemanticCorridorEngine.cosine_similarity(u, None), 0.0)
+
+    def test_goldilocks_scoring_curve(self):
+        """Verify the Interdisciplinary Goldilocks Sweet Spot scoring curve."""
+        # 1. Peak Sweet Spot [0.35, 0.65]
+        score_50 = SemanticCorridorEngine.calculate_goldilocks_score(0.50)
+        self.assertEqual(score_50, 1.0)
+        self.assertEqual(SemanticCorridorEngine.get_vector_zone(0.50), "Sweet Spot")
+
+        score_35 = SemanticCorridorEngine.calculate_goldilocks_score(0.35)
+        self.assertGreaterEqual(score_35, 0.90)
+        self.assertEqual(SemanticCorridorEngine.get_vector_zone(0.35), "Sweet Spot")
+
+        score_65 = SemanticCorridorEngine.calculate_goldilocks_score(0.65)
+        self.assertGreaterEqual(score_65, 0.90)
+        self.assertEqual(SemanticCorridorEngine.get_vector_zone(0.65), "Sweet Spot")
+
+        # 2. Trivial Overlap Penalty (> 0.80)
+        score_85 = SemanticCorridorEngine.calculate_goldilocks_score(0.85)
+        self.assertLess(score_85, 0.40)
+        self.assertEqual(SemanticCorridorEngine.get_vector_zone(0.85), "Trivial Overlap")
+
+        score_95 = SemanticCorridorEngine.calculate_goldilocks_score(0.95)
+        self.assertLess(score_95, 0.20)
+        self.assertEqual(SemanticCorridorEngine.get_vector_zone(0.95), "Trivial Overlap")
+
+        # 3. Conceptual Disconnect Penalty (< 0.20)
+        score_10 = SemanticCorridorEngine.calculate_goldilocks_score(0.10)
+        self.assertLess(score_10, 0.25)
+        self.assertEqual(SemanticCorridorEngine.get_vector_zone(0.10), "Conceptual Disconnect")
+
+        score_neg = SemanticCorridorEngine.calculate_goldilocks_score(-0.1)
+        self.assertEqual(score_neg, 0.0)
+        self.assertEqual(SemanticCorridorEngine.get_vector_zone(-0.1), "Conceptual Disconnect")
+
+    def test_vector_engine_embedding_and_cache(self):
+        """Verify ONNX embedding generation and in-memory caching."""
+        engine = SemanticCorridorEngine.get_instance()
+        if not engine.is_available:
+            self.skipTest("FastEmbed is not available in current environment")
+
+        vec1 = engine.embed("Cell Biology")
+        self.assertIsNotNone(vec1)
+        self.assertEqual(len(vec1.shape), 1)
+
+        # Cache check: second call should be instantaneous and return identical array
+        vec2 = engine.embed("Cell Biology")
+        self.assertIs(vec1, vec2)
+
+        # Semantic similarity between related fields
+        vec_mech = engine.embed("Biophysics & Mechanobiology")
+        sim = engine.cosine_similarity(vec1, vec_mech)
+        self.assertGreater(sim, 0.40)
+        self.assertLessEqual(sim, 1.0)
+
+    def test_engine_graceful_fallback(self):
+        """Verify graceful degradation to rule-based heuristics when vector engine is disabled."""
+        # Create an engine instance forced to unavailable
+        fallback_engine = SemanticCorridorEngine.__new__(SemanticCorridorEngine)
+        fallback_engine.model_name = "dummy"
+        fallback_engine.model = None
+        fallback_engine.is_available = False
+        fallback_engine._cache = {}
+
+        self.assertIsNone(fallback_engine.embed("Cell Biology"))
+
+        # TopicCrossBreeder should seamlessly function using heuristic rules without crashing
+        breeder = TopicCrossBreeder(seed=42, vector_engine=fallback_engine)
+        topics = breeder.cross_breed(["Cell Biology"], count=5)
+        self.assertEqual(len(topics), 5)
+        for t in topics:
+            self.assertGreaterEqual(t.affinity, 0.80)
+            self.assertIsNone(t.cosine_similarity)
+
+    def test_cross_breeder_vector_attributes(self):
+        """Verify that topics generated with active vector engine contain valid vector metrics."""
+        engine = SemanticCorridorEngine.get_instance()
+        if not engine.is_available:
+            self.skipTest("FastEmbed is not available in current environment")
+
+        breeder = TopicCrossBreeder(seed=42)
+        topics = breeder.cross_breed(["Cell Biology"], count=5)
+        self.assertEqual(len(topics), 5)
+        for t in topics:
+            self.assertIsNotNone(t.cosine_similarity)
+            self.assertIsNotNone(t.goldilocks_score)
+            self.assertIn(t.vector_zone, ["Sweet Spot", "Moderate Overlap", "Trivial Overlap", "Distant Analogy", "Conceptual Disconnect"])
+            self.assertGreaterEqual(t.affinity, 0.80)
 
 
 if __name__ == "__main__":
