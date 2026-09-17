@@ -10,7 +10,9 @@ outputs 10 high-value research directions, and retrieves real literature via Goo
 from __future__ import annotations
 
 import argparse
+import atexit
 import json
+import os
 import random
 import re
 import sys
@@ -84,6 +86,64 @@ def color(text: str, *styles: str) -> str:
 class MultilingualBridge:
     """Zero-token multilingual translation layer for scientific topics."""
     _cache: Dict[str, str] = {}
+    _DISK_CACHE_PATH = os.path.join(os.path.expanduser("~"), ".cache", "science_expander_translations.json")
+
+    _LEXICON: Dict[str, str] = {
+        "клеточная биология": "Cell Biology",
+        "биология клетки": "Cell Biology",
+        "квантовая физика": "Quantum Physics",
+        "квантовая оптика": "Quantum Optics",
+        "нейробиология": "Neurobiology",
+        "молекулярная биология": "Molecular Biology",
+        "генетика": "Genetics",
+        "редактирование генома": "Genome Editing",
+        "биоинформатика": "Bioinformatics",
+        "биофизика": "Biophysics",
+        "термодинамика": "Thermodynamics",
+        "статистическая физика": "Statistical Physics",
+        "астрофизика": "Astrophysics",
+        "экология": "Ecology",
+        "микробиология": "Microbiology",
+        "машинное обучение": "Machine Learning",
+        "глубокое обучение": "Deep Learning",
+        "теория графов": "Graph Theory",
+        "топологический анализ данных": "Topological Data Analysis",
+        "дифференциальная геометрия": "Differential Geometry",
+        "стохастическая термодинамика": "Stochastic Thermodynamics",
+        "нанотехнологии": "Nanotechnology",
+        "синтетическая биология": "Synthetic Biology",
+        "теория информации": "Information Theory",
+        "сложные сети": "Complex Networks",
+        "иммунология": "Immunology",
+        "онкология": "Oncology",
+        "эпигенетика": "Epigenetics",
+        "протеомика": "Proteomics",
+        "геномика": "Genomics",
+        "повреждение днк": "DNA Damage",
+        "ответ на повреждение днк": "DNA Damage Response",
+        "репарация днк": "DNA Repair",
+        "сверхпроводимость": "Superconductivity",
+    }
+
+    @classmethod
+    def _load_disk_cache(cls) -> None:
+        if not cls._cache and os.path.exists(cls._DISK_CACHE_PATH):
+            try:
+                with open(cls._DISK_CACHE_PATH, "r", encoding="utf-8") as f:
+                    loaded = json.load(f)
+                    if isinstance(loaded, dict):
+                        cls._cache.update(loaded)
+            except Exception:
+                pass
+
+    @classmethod
+    def _save_disk_cache(cls) -> None:
+        try:
+            os.makedirs(os.path.dirname(cls._DISK_CACHE_PATH), exist_ok=True)
+            with open(cls._DISK_CACHE_PATH, "w", encoding="utf-8") as f:
+                json.dump(cls._cache, f, ensure_ascii=False, indent=2)
+        except Exception:
+            pass
 
     @classmethod
     def is_cyrillic(cls, text: str) -> bool:
@@ -97,35 +157,44 @@ class MultilingualBridge:
         if not cleaned or not cls.is_cyrillic(cleaned):
             return cleaned
 
+        # 1. Check curated scientific lexicon (0ms latency, 100% offline resilient)
+        cleaned_lower = cleaned.lower()
+        if cleaned_lower in cls._LEXICON:
+            return cls._LEXICON[cleaned_lower]
+
+        # 2. Check in-memory & disk cache
+        cls._load_disk_cache()
         if cleaned in cls._cache:
             return cls._cache[cleaned]
 
-        # 1. Try deep-translator GoogleTranslator
+        # 3. Fast Google GTX endpoint
+        try:
+            q = urllib.parse.quote(cleaned)
+            url = f"https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=en&dt=t&q={q}"
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (ScienceExpander/2.0)"})
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                if data and data[0] and data[0][0] and data[0][0][0]:
+                    translated = data[0][0][0].strip().title()
+                    cls._cache[cleaned] = translated
+                    cls._save_disk_cache()
+                    return translated
+        except Exception:
+            pass
+
+        # 4. Fallback to deep-translator GoogleTranslator
         try:
             from deep_translator import GoogleTranslator
             res = GoogleTranslator(source='auto', target='en').translate(cleaned)
             if res and res.strip():
                 translated = res.strip().title()
                 cls._cache[cleaned] = translated
+                cls._save_disk_cache()
                 return translated
         except Exception:
             pass
 
-        # 2. Resilient fallback to Google GTX endpoint
-        try:
-            q = urllib.parse.quote(cleaned)
-            url = f"https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=en&dt=t&q={q}"
-            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (ScienceExpander/2.0)"})
-            with urllib.request.urlopen(req, timeout=6) as resp:
-                data = json.loads(resp.read().decode("utf-8"))
-                if data and data[0] and data[0][0] and data[0][0][0]:
-                    translated = data[0][0][0].strip().title()
-                    cls._cache[cleaned] = translated
-                    return translated
-        except Exception:
-            pass
-
-        # 3. Graceful fallback: return original text
+        # 5. Graceful fallback: return original text
         return cleaned
 
     @classmethod
@@ -819,6 +888,8 @@ class GeneratedTopic:
     cosine_similarity: Optional[float] = None
     goldilocks_score: Optional[float] = None
     vector_zone: Optional[str] = None
+    anchor_phrase: Optional[str] = None
+    anchor_terms: Optional[List[str]] = None
 
 
 def clean_topic_name(topic: str) -> str:
@@ -840,6 +911,108 @@ def extract_core_keywords(text: str) -> List[str]:
     words = re.findall(r"[A-Za-z0-9\-]+", text)
     filtered = [w for w in words if w.lower() not in stop_words and len(w) > 2]
     return filtered[:3] if filtered else words[:2]
+
+
+def extract_anchor_phrase_and_terms(topic: str) -> Tuple[str, List[str]]:
+    """
+    Extract immutable anchor phrase and core keywords from a scientific topic.
+    For example:
+      'DNA damage response' -> ('DNA damage', ['dna', 'damage', 'response'])
+      'Cell Biology' -> ('Cell Biology', ['cell', 'biology'])
+      'CRISPR-Cas9 gene editing' -> ('CRISPR-Cas9', ['crispr', 'cas9', 'gene', 'editing'])
+    """
+    cleaned = clean_topic_name(topic)
+    m = re.match(r"^(.+?)\s*\((.+?)\)$", cleaned)
+    primary_part = m.group(2).strip() if m else cleaned
+
+    words = re.findall(r"[A-Za-z0-9\-]+", primary_part)
+    if not words:
+        words = [primary_part]
+
+    generic_suffixes = {
+        "response", "responses", "signaling", "signalling", "pathway", "pathways",
+        "mechanism", "mechanisms", "analysis", "system", "systems", "dynamics",
+        "study", "studies", "perspective", "perspectives", "principles", "approach"
+    }
+
+    if len(words) > 1 and words[-1].lower() in generic_suffixes:
+        anchor_words = words[:-1]
+    else:
+        anchor_words = words
+
+    anchor_phrase = " ".join(anchor_words)
+
+    stop_words = {"a", "an", "the", "in", "of", "on", "for", "with", "to", "at", "by", "via", "and", "or"}
+    anchor_terms: List[str] = []
+    for w in words:
+        w_low = w.lower().strip("-")
+        if w_low not in stop_words and (len(w_low) >= 3 or w_low in {"dna", "rna", "sim", "tur", "tda", "qkd"}):
+            if w_low not in anchor_terms:
+                anchor_terms.append(w_low)
+        if "-" in w_low:
+            for subpart in w_low.split("-"):
+                sub_clean = subpart.strip()
+                if sub_clean not in stop_words and (len(sub_clean) >= 3 or sub_clean in {"dna", "rna", "sim", "tur", "tda", "qkd"}):
+                    if sub_clean not in anchor_terms:
+                        anchor_terms.append(sub_clean)
+
+    if m:
+        cyr_words = re.findall(r"[а-яА-ЯёЁ0-9\-]+", m.group(1).strip())
+        for cw in cyr_words:
+            cw_low = cw.lower().strip("-")
+            if len(cw_low) >= 3 and cw_low not in anchor_terms:
+                anchor_terms.append(cw_low)
+
+    return anchor_phrase, anchor_terms
+
+
+def check_anchor_gate(paper: Any, anchor_terms: List[str]) -> bool:
+    """
+    Verify if paper contains the core immutable anchor keywords in its title or abstract.
+    For topics with prominent markers like 'dna', 'rna', 'crispr', 'quantum', 'cell', 'neural',
+    the paper MUST contain relevant domain anchor terminology.
+    """
+    if not anchor_terms:
+        return True
+
+    title_lower = getattr(paper, "title", "").lower()
+    abstract_lower = (getattr(paper, "abstract", "") or "").lower()
+    full_text = f"{title_lower} {abstract_lower}"
+
+    # Strict biological / chemical checks for key acronyms
+    if "dna" in anchor_terms:
+        return bool(re.search(r'\bdna\b', full_text))
+    if "rna" in anchor_terms:
+        return bool(re.search(r'\brna\b', full_text))
+    if "crispr" in anchor_terms:
+        return bool(re.search(r'\bcrispr\b', full_text))
+
+    # General check: at least one substantive anchor term or morphological variant must appear
+    for term in anchor_terms:
+        if len(term) >= 3:
+            term_l = term.lower()
+            if term_l == "cell":
+                if re.search(r'\b(cells?|cellular)\b', full_text):
+                    return True
+            elif term_l == "gene":
+                if re.search(r'\b(genes?|genetics?)\b', full_text):
+                    return True
+            elif term_l in {"neuron", "neural"}:
+                if re.search(r'\b(neurons?|neuronal|neural)\b', full_text):
+                    return True
+            elif term_l in {"molecule", "molecular"}:
+                if re.search(r'\b(molecules?|molecular)\b', full_text):
+                    return True
+            elif term_l.endswith("y"):
+                stem = term_l[:-1]
+                if re.search(rf'\b{re.escape(stem)}(y|ies|ic|ical|ist|ists)?\b', full_text):
+                    return True
+            else:
+                pattern = rf'\b{re.escape(term_l)}(s|es|ed|ing|ic|ical|ar|ular)?\b'
+                if re.search(pattern, full_text):
+                    return True
+
+    return False
 
 
 # =====================================================================
@@ -1122,16 +1295,25 @@ class TopicCrossBreeder:
         display_secondary_topic: Optional[str] = None
     ) -> GeneratedTopic:
         """Construct a candidate with targeted primary and fallback search queries."""
+        anchor_p, terms_p = extract_anchor_phrase_and_terms(primary_topic)
         domain_kw = domain.keywords[0]
         domain_alt = domain.keywords[1] if len(domain.keywords) > 1 else domain_kw
+        alt_concepts = [c for c in (domain.methods[:2] + domain.phenomena[:2] + domain.keywords[:2]) if c.lower() != domain_kw.lower()]
+        concept_alt = alt_concepts[0] if alt_concepts else domain_alt
 
-        # Search query engineering: Construct authentic literature queries
+        # Search query engineering with Anchor Invariance:
+        # The user's seed topic is an immutable anchor that is NEVER stripped.
         if secondary_topic:
-            primary_query = f'"{domain_kw}" "{primary_topic}" "{secondary_topic}"'
-            fallback_query = f'"{domain_kw}" "{primary_topic}"'
+            anchor_s, terms_s = extract_anchor_phrase_and_terms(secondary_topic)
+            primary_query = f'"{anchor_p}" "{anchor_s}" {domain_kw}'
+            fallback_query = f'"{anchor_p}" "{anchor_s}" ({domain_alt} OR "{concept_alt}")'
+            all_anchor_terms = list(dict.fromkeys(terms_p + terms_s))
+            all_anchor_phrase = f"{anchor_p} {anchor_s}"
         else:
-            primary_query = f'"{domain_kw}" "{primary_topic}"'
-            fallback_query = f'"{domain_alt}" "{primary_topic}"'
+            primary_query = f'"{anchor_p}" ({domain_kw} OR "{concept_alt}")'
+            fallback_query = f'"{anchor_p}" ({domain_alt} OR "{concept_alt}")'
+            all_anchor_terms = terms_p
+            all_anchor_phrase = anchor_p
 
         # Autonomous Vector Scoring via FastEmbed ONNX
         cos_sim = None
@@ -1165,7 +1347,9 @@ class TopicCrossBreeder:
             display_secondary_topic=display_secondary_topic or secondary_topic,
             cosine_similarity=cos_sim,
             goldilocks_score=goldilocks,
-            vector_zone=zone
+            vector_zone=zone,
+            anchor_phrase=all_anchor_phrase,
+            anchor_terms=all_anchor_terms
         )
 
     def _select_diverse(
@@ -1357,6 +1541,7 @@ class OpenAlexClient:
     ) -> List[RetrievedPaper]:
         # Punctuation cleaning & whitespace normalization for exact multi-term grouping
         clean_q = re.sub(r'[:;,."\'\-()\[\]/?!]', ' ', query)
+        clean_q = re.sub(r'\b(OR|AND)\b', ' ', clean_q)
         clean_q = re.sub(r'\s+', ' ', clean_q).strip()
 
         params = [
@@ -1438,8 +1623,10 @@ class OpenAlexClient:
         try:
             q = urllib.parse.quote(query)
             params = [f"query={q}", f"rows={per_page}", "sort=relevance"]
+            filters = ["type:journal-article"]
             if min_year:
-                params.append(f"filter=from-pub-date:{min_year}-01-01")
+                filters.append(f"from-pub-date:{min_year}-01-01")
+            params.append(f"filter={','.join(filters)}")
             url = f"https://api.crossref.org/works?{'&'.join(params)}"
             req = urllib.request.Request(url, headers={"User-Agent": "ScienceExpander/2.0 (mailto:academic-tools@science.org)"})
             with urllib.request.urlopen(req, timeout=timeout) as resp:
@@ -1449,8 +1636,10 @@ class OpenAlexClient:
                 items = data.get("message", {}).get("items", [])
                 papers: List[RetrievedPaper] = []
                 for it in items:
-                    titles = it.get("title", [])
-                    title = titles[0] if titles else "Untitled Crossref Publication"
+                    titles = it.get("title") or []
+                    if not titles or not titles[0] or not str(titles[0]).strip():
+                        continue
+                    title = str(titles[0]).strip()
                     authors = []
                     for a in it.get("author", []):
                         fn = a.get("given", "")
@@ -1473,7 +1662,12 @@ class OpenAlexClient:
                     if not oa_url and doi:
                         oa_url = f"https://doi.org/{doi}"
 
-                    abstract = f"Indexed publication in Crossref under DOI {doi}. Investigates core mechanisms in {query}."
+                    raw_abstract = it.get("abstract", "")
+                    if raw_abstract:
+                        clean_abstract = re.sub(r'<[^>]+>', ' ', raw_abstract)
+                        abstract = re.sub(r'\s+', ' ', clean_abstract).strip()
+                    else:
+                        abstract = f"Indexed publication in Crossref under DOI {doi}. Focuses on {title}."
 
                     paper = RetrievedPaper(
                         title=title,
@@ -1510,6 +1704,70 @@ class ScholarLiteratureClient:
     3. The Review (Comprehensive state-of-the-art survey)
     """
 
+    @classmethod
+    def rerank_and_filter_candidates(
+        cls,
+        candidates: List[RetrievedPaper],
+        topic: GeneratedTopic,
+        anchor_terms: List[str],
+        axis: str,
+        min_similarity: float = 0.35
+    ) -> List[Tuple[RetrievedPaper, float, float]]:
+        """
+        Rerank candidate papers using local FastEmbed vector embeddings and the Anchor Gate.
+        Returns sorted list of (paper, composite_score, cosine_sim) for qualifying papers.
+        """
+        if not candidates:
+            return []
+
+        engine = SemanticCorridorEngine.get_instance()
+        topic_target_text = f"{topic.title}. {topic.rationale}. {topic.domain.name}"
+        vec_topic = engine.embed(topic_target_text) if (engine and engine.is_available) else None
+
+        qualifying: List[Tuple[RetrievedPaper, float, float]] = []
+
+        for p in candidates:
+            # 1. Anchor Gate Check
+            if not check_anchor_gate(p, anchor_terms):
+                continue
+
+            # 2. Semantic Vector Gate Check
+            p_text = f"{p.title}. {p.abstract or ''}"
+            if vec_topic is not None and engine and engine.is_available:
+                vec_p = engine.embed(p_text)
+                cos_sim = engine.cosine_similarity(vec_p, vec_topic) if vec_p is not None else 0.5
+            else:
+                cos_sim = 0.5
+
+            if cos_sim < min_similarity:
+                continue
+
+            # 3. Composite Relevance Score tailored to axis
+            title_lower = p.title.lower()
+            anchor_in_title = any(re.search(rf'\b{re.escape(t)}\b', title_lower) for t in anchor_terms)
+            title_boost = 0.15 if anchor_in_title else 0.0
+
+            if axis == "foundation":
+                cit_score = min(1.0, (p.citations or 0) / 100.0)
+                composite = 0.55 * cos_sim + 0.30 * cit_score + title_boost
+            elif axis == "frontier":
+                year_val = int(p.pub_year) if p.pub_year and p.pub_year.isdigit() else 2020
+                year_score = 1.0 if year_val >= 2024 else (0.5 if year_val >= 2022 else 0.1)
+                composite = 0.60 * cos_sim + 0.25 * year_score + title_boost
+            elif axis == "review":
+                is_rev = ("review" in title_lower or "survey" in title_lower or 
+                          "advances" in title_lower or "progress" in title_lower or 
+                          "perspective" in title_lower or (p.venue and "review" in p.venue.lower()))
+                rev_score = 1.0 if is_rev else 0.3
+                composite = 0.60 * cos_sim + 0.25 * rev_score + title_boost
+            else:
+                composite = cos_sim + title_boost
+
+            qualifying.append((p, composite, cos_sim))
+
+        qualifying.sort(key=lambda item: item[1], reverse=True)
+        return qualifying
+
     @staticmethod
     def fetch_triad(topic: GeneratedTopic, silent: bool = False) -> LiteratureTriad:
         def log(msg: str) -> None:
@@ -1531,68 +1789,180 @@ class ScholarLiteratureClient:
                 log(color(msg, Style.DIM, fallback_color))
 
         try:
+            # Anchor Invariance: derive core anchor terms and relaxed anchor query
+            anchor_phrase = topic.anchor_phrase or extract_anchor_phrase_and_terms(topic.primary_topic)[0]
+            anchor_terms = topic.anchor_terms or extract_anchor_phrase_and_terms(topic.primary_topic)[1]
+
+            clean_domain_kws = []
+            for k in topic.domain.keywords[:2]:
+                k_clean = re.sub(r'\(.*?\)', '', k).strip()
+                if k_clean and k_clean not in clean_domain_kws:
+                    clean_domain_kws.append(k_clean)
+            if not clean_domain_kws:
+                clean_domain_kws = [topic.domain.name]
+            domain_str = " OR ".join([f'"{k}"' if " " in k else k for k in clean_domain_kws])
+            relaxed_anchor_query = f'"{anchor_phrase}" ({domain_str})'
+
             # =================================================================
             # Axis 1: THE FOUNDATION (Seminal Landmark Publication)
             # =================================================================
             set_status(f"[*] [1/3 Foundation] Fetching seminal landmark papers for: {topic.primary_query}...", Style.CYAN)
-            found_cands = ScholarLiteratureClient._execute_scholar_search(topic.primary_query, log_func=log, max_results=3)
-            if not found_cands:
-                found_cands = OpenAlexClient.search_works(topic.primary_query, sort="relevance_score:desc", per_page=6)
-            if not found_cands:
-                relaxed_q = f"{topic.domain.keywords[0]} {topic.primary_topic}"
-                found_cands = OpenAlexClient.search_works(relaxed_q, sort="relevance_score:desc", per_page=6)
+            found_cands = ScholarLiteratureClient._execute_scholar_search(topic.primary_query, log_func=log, max_results=5)
+            qualifying = ScholarLiteratureClient.rerank_and_filter_candidates(
+                found_cands, topic, anchor_terms, axis="foundation", min_similarity=0.35
+            )
+            oa_found_cands = []
+            if not qualifying:
+                oa_found_cands = OpenAlexClient.search_works(topic.primary_query, sort="relevance_score:desc", per_page=10)
+                qualifying = ScholarLiteratureClient.rerank_and_filter_candidates(
+                    oa_found_cands, topic, anchor_terms, axis="foundation", min_similarity=0.35
+                )
+            relaxed_cands = []
+            if not qualifying:
+                relaxed_cands = OpenAlexClient.search_works(relaxed_anchor_query, sort="relevance_score:desc", per_page=10)
+                qualifying = ScholarLiteratureClient.rerank_and_filter_candidates(
+                    relaxed_cands, topic, anchor_terms, axis="foundation", min_similarity=0.35
+                )
+            if not qualifying and relaxed_cands:
+                qualifying = ScholarLiteratureClient.rerank_and_filter_candidates(
+                    relaxed_cands, topic, anchor_terms, axis="foundation", min_similarity=0.20
+                )
+            anchor_only_cands = []
+            if not qualifying:
+                anchor_only_cands = OpenAlexClient.search_works(f'"{anchor_phrase}"', sort="relevance_score:desc", per_page=10)
+                qualifying = ScholarLiteratureClient.rerank_and_filter_candidates(
+                    anchor_only_cands, topic, anchor_terms, axis="foundation", min_similarity=0.15
+                )
 
-            if found_cands:
-                # Prioritize landmark citations among top semantic relevance matches
-                found_cands.sort(key=lambda p: (p.citations or 0), reverse=True)
-                triad.foundation = found_cands[0]
+            if qualifying:
+                triad.foundation = qualifying[0][0]
                 triad.foundation.axis = "The Foundation (Seminal Landmark)"
+            else:
+                all_cands = found_cands + oa_found_cands + relaxed_cands + anchor_only_cands
+                anchor_matches = [c for c in all_cands if check_anchor_gate(c, anchor_terms)]
+                if anchor_matches:
+                    triad.foundation = anchor_matches[0]
+                    triad.foundation.axis = "The Foundation (Seminal Landmark)"
 
             # =================================================================
             # Axis 2: THE FRONTIER (2024–2026 Cutting-Edge Research & Preprints)
             # =================================================================
             set_status("[*] [2/3 Frontier] Fetching 2024–2026 frontier publications...", Style.YELLOW)
-            frontier_cands = ScholarLiteratureClient._execute_scholar_search(topic.primary_query, year_low=2024, log_func=log, max_results=3)
-            if not frontier_cands:
-                frontier_cands = OpenAlexClient.search_works(topic.primary_query, min_year=2024, sort="relevance_score:desc", per_page=8)
-            if not frontier_cands:
-                relaxed_q = f"{topic.domain.keywords[0]} {topic.primary_topic}"
-                frontier_cands = OpenAlexClient.search_works(relaxed_q, min_year=2024, sort="relevance_score:desc", per_page=8)
-
-            # Pick candidate distinct from Foundation
-            for cand in frontier_cands:
+            frontier_cands = ScholarLiteratureClient._execute_scholar_search(topic.primary_query, year_low=2024, log_func=log, max_results=5)
+            qualifying_frontier = ScholarLiteratureClient.rerank_and_filter_candidates(
+                frontier_cands, topic, anchor_terms, axis="frontier", min_similarity=0.35
+            )
+            for cand, comp_score, sim in qualifying_frontier:
                 if not is_same_paper(cand, triad.foundation):
                     triad.frontier = cand
                     triad.frontier.axis = "The Frontier (2024-2026 Emerging Edge)"
                     break
-            if not triad.frontier and frontier_cands:
-                triad.frontier = frontier_cands[0]
-                triad.frontier.axis = "The Frontier (2024-2026 Emerging Edge)"
+
+            oa_frontier_cands = []
+            if not triad.frontier:
+                oa_frontier_cands = OpenAlexClient.search_works(topic.primary_query, min_year=2024, sort="relevance_score:desc", per_page=10)
+                qualifying_frontier = ScholarLiteratureClient.rerank_and_filter_candidates(
+                    oa_frontier_cands, topic, anchor_terms, axis="frontier", min_similarity=0.35
+                )
+                for cand, comp_score, sim in qualifying_frontier:
+                    if not is_same_paper(cand, triad.foundation):
+                        triad.frontier = cand
+                        triad.frontier.axis = "The Frontier (2024-2026 Emerging Edge)"
+                        break
+
+            relaxed_frontier_cands = []
+            if not triad.frontier:
+                relaxed_frontier_cands = OpenAlexClient.search_works(relaxed_anchor_query, min_year=2024, sort="relevance_score:desc", per_page=10)
+                qualifying_frontier = ScholarLiteratureClient.rerank_and_filter_candidates(
+                    relaxed_frontier_cands, topic, anchor_terms, axis="frontier", min_similarity=0.25
+                )
+                for cand, comp_score, sim in qualifying_frontier:
+                    if not is_same_paper(cand, triad.foundation):
+                        triad.frontier = cand
+                        triad.frontier.axis = "The Frontier (2024-2026 Emerging Edge)"
+                        break
+
+            anchor_frontier_cands = []
+            if not triad.frontier:
+                anchor_frontier_cands = OpenAlexClient.search_works(f'"{anchor_phrase}"', min_year=2024, sort="relevance_score:desc", per_page=10)
+                qualifying_frontier = ScholarLiteratureClient.rerank_and_filter_candidates(
+                    anchor_frontier_cands, topic, anchor_terms, axis="frontier", min_similarity=0.15
+                )
+                for cand, comp_score, sim in qualifying_frontier:
+                    if not is_same_paper(cand, triad.foundation):
+                        triad.frontier = cand
+                        triad.frontier.axis = "The Frontier (2024-2026 Emerging Edge)"
+                        break
+
+            if not triad.frontier:
+                all_frontier_cands = frontier_cands + oa_frontier_cands + relaxed_frontier_cands + anchor_frontier_cands
+                anchor_matches = [c for c in all_frontier_cands if check_anchor_gate(c, anchor_terms) and not is_same_paper(c, triad.foundation)]
+                if anchor_matches:
+                    triad.frontier = anchor_matches[0]
+                    triad.frontier.axis = "The Frontier (2024-2026 Emerging Edge)"
 
             # =================================================================
             # Axis 3: THE REVIEW (State-of-the-Art Comprehensive Survey)
             # =================================================================
             set_status("[*] [3/3 Review] Fetching comprehensive review/survey literature...", Style.MAGENTA)
             review_q = f"{topic.primary_query} review"
-            review_cands = ScholarLiteratureClient._execute_scholar_search(review_q, log_func=log, max_results=3)
-            if not review_cands:
-                review_cands = OpenAlexClient.search_works(topic.primary_query, is_review=True, sort="relevance_score:desc", per_page=8)
-            if not review_cands:
-                review_cands = OpenAlexClient.search_works(f"{topic.domain.keywords[0]} {topic.primary_topic} review", sort="relevance_score:desc", per_page=8)
-
-            # Pick candidate distinct from Foundation and Frontier
-            for cand in review_cands:
+            review_cands = ScholarLiteratureClient._execute_scholar_search(review_q, log_func=log, max_results=5)
+            qualifying_review = ScholarLiteratureClient.rerank_and_filter_candidates(
+                review_cands, topic, anchor_terms, axis="review", min_similarity=0.35
+            )
+            for cand, comp_score, sim in qualifying_review:
                 if not is_same_paper(cand, triad.foundation) and not is_same_paper(cand, triad.frontier):
                     triad.review = cand
                     triad.review.axis = "The Review (State-of-the-Art Survey)"
                     break
 
-            if not triad.review and review_cands:
-                for cand in review_cands:
-                    if not is_same_paper(cand, triad.foundation):
+            oa_review_cands = []
+            if not triad.review:
+                oa_review_cands = OpenAlexClient.search_works(topic.primary_query, is_review=True, sort="relevance_score:desc", per_page=10)
+                if not oa_review_cands:
+                    oa_review_cands = OpenAlexClient.search_works(review_q, sort="relevance_score:desc", per_page=10)
+                qualifying_review = ScholarLiteratureClient.rerank_and_filter_candidates(
+                    oa_review_cands, topic, anchor_terms, axis="review", min_similarity=0.35
+                )
+                for cand, comp_score, sim in qualifying_review:
+                    if not is_same_paper(cand, triad.foundation) and not is_same_paper(cand, triad.frontier):
                         triad.review = cand
                         triad.review.axis = "The Review (State-of-the-Art Survey)"
                         break
+
+            relaxed_review_cands = []
+            if not triad.review:
+                relaxed_rev_q = f"{relaxed_anchor_query} review"
+                relaxed_review_cands = OpenAlexClient.search_works(relaxed_rev_q, sort="relevance_score:desc", per_page=10)
+                qualifying_review = ScholarLiteratureClient.rerank_and_filter_candidates(
+                    relaxed_review_cands, topic, anchor_terms, axis="review", min_similarity=0.25
+                )
+                for cand, comp_score, sim in qualifying_review:
+                    if not is_same_paper(cand, triad.foundation) and not is_same_paper(cand, triad.frontier):
+                        triad.review = cand
+                        triad.review.axis = "The Review (State-of-the-Art Survey)"
+                        break
+
+            anchor_review_cands = []
+            if not triad.review:
+                anchor_review_cands = OpenAlexClient.search_works(anchor_phrase, is_review=True, sort="relevance_score:desc", per_page=10)
+                if not anchor_review_cands:
+                    anchor_review_cands = OpenAlexClient.search_works(f'"{anchor_phrase}" review', sort="relevance_score:desc", per_page=10)
+                qualifying_review = ScholarLiteratureClient.rerank_and_filter_candidates(
+                    anchor_review_cands, topic, anchor_terms, axis="review", min_similarity=0.15
+                )
+                for cand, comp_score, sim in qualifying_review:
+                    if not is_same_paper(cand, triad.foundation) and not is_same_paper(cand, triad.frontier):
+                        triad.review = cand
+                        triad.review.axis = "The Review (State-of-the-Art Survey)"
+                        break
+
+            if not triad.review:
+                all_rev_cands = review_cands + oa_review_cands + relaxed_review_cands + anchor_review_cands
+                anchor_matches = [c for c in all_rev_cands if check_anchor_gate(c, anchor_terms) and not is_same_paper(c, triad.foundation) and not is_same_paper(c, triad.frontier)]
+                if anchor_matches:
+                    triad.review = anchor_matches[0]
+                    triad.review.axis = "The Review (State-of-the-Art Survey)"
 
             # Ensure BibTeX entries exist for all papers in triad
             for p in triad.papers:
@@ -2852,4 +3222,20 @@ Examples:
 
 
 if __name__ == "__main__":
-    main()
+    exit_code = 0
+    try:
+        main()
+    except SystemExit as se:
+        exit_code = se.code if isinstance(se.code, int) else (0 if se.code is None else 1)
+    except KeyboardInterrupt:
+        exit_code = 130
+    except Exception as e:
+        sys.stderr.write(f"Unexpected error: {e}\n")
+        exit_code = 1
+    finally:
+        try:
+            sys.stdout.flush()
+            sys.stderr.flush()
+        except Exception:
+            pass
+        os._exit(exit_code)

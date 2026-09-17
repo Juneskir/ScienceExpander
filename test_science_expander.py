@@ -40,6 +40,9 @@ from science_expander import (
     is_same_paper,
     DOMAINS,
     SemanticCorridorEngine,
+    GeneratedTopic,
+    extract_anchor_phrase_and_terms,
+    check_anchor_gate,
 )
 
 
@@ -819,6 +822,188 @@ class TestSemanticCorridorEngine(unittest.TestCase):
             self.assertIsNotNone(t.goldilocks_score)
             self.assertIn(t.vector_zone, ["Sweet Spot", "Moderate Overlap", "Trivial Overlap", "Distant Analogy", "Conceptual Disconnect"])
             self.assertGreaterEqual(t.affinity, 0.80)
+
+
+class TestAnchorInvarianceAndReranker(unittest.TestCase):
+    """Verifies anchor invariance, anchor gate checks, and local semantic reranking."""
+
+    def test_anchor_extraction_helpers(self):
+        """Verify substantive anchor extraction and suffix stripping."""
+        # Strips generic suffixes like 'response'
+        phrase1, terms1 = extract_anchor_phrase_and_terms("DNA damage response")
+        self.assertEqual(phrase1, "DNA damage")
+        self.assertIn("dna", terms1)
+        self.assertIn("damage", terms1)
+        self.assertIn("response", terms1)
+
+        # Retains core phrase for CRISPR
+        phrase2, terms2 = extract_anchor_phrase_and_terms("CRISPR-Cas9 gene editing")
+        self.assertIn("crispr", terms2)
+        self.assertIn("cas9", terms2)
+
+        # Standard clean topics
+        phrase3, terms3 = extract_anchor_phrase_and_terms("Cell Biology")
+        self.assertEqual(phrase3, "Cell Biology")
+        self.assertIn("cell", terms3)
+        self.assertIn("biology", terms3)
+
+        # Bilingual topics preserve both Cyrillic and English anchor keywords
+        phrase4, terms4 = extract_anchor_phrase_and_terms("Клеточная биология (Cell Biology)")
+        self.assertEqual(phrase4, "Cell Biology")
+        self.assertIn("cell", terms4)
+        self.assertIn("биология", terms4)
+
+    def test_check_anchor_gate(self):
+        """Verify lexical word-boundary anchor gating on titles and abstracts."""
+        # Paper lacking 'dna' anchor must fail
+        unrelated = RetrievedPaper(
+            title="Nonequilibrium thermodynamics of chemical reaction networks",
+            abstract="Energy dissipation and entropy production in catalytic reaction cycles.",
+            authors=["Smith, J."],
+            pub_year="2021",
+            venue="Physical Review E",
+            citations=120,
+            url="https://example.com/1",
+            query_used="thermodynamics",
+            is_fallback=False
+        )
+        self.assertFalse(check_anchor_gate(unrelated, ["dna", "damage"]))
+
+        # Paper containing 'dna' in title must pass
+        dna_paper = RetrievedPaper(
+            title="Thermodynamic uncertainty relation in DNA replication and damage repair",
+            abstract="Fluctuation relations applied to biological polymerase dynamics.",
+            authors=["Johnson, A."],
+            pub_year="2023",
+            venue="Biophysical Journal",
+            citations=40,
+            url="https://example.com/2",
+            query_used="thermodynamics dna",
+            is_fallback=False
+        )
+        self.assertTrue(check_anchor_gate(dna_paper, ["dna", "damage"]))
+
+        # Paper containing 'dna' in abstract only must pass
+        dna_in_abstract = RetrievedPaper(
+            title="Thermodynamics of molecular error correction",
+            abstract="We investigate proofreading efficiency in the presence of double-strand DNA breaks.",
+            authors=["Lee, K."],
+            pub_year="2022",
+            venue="PRL",
+            citations=35,
+            url="https://example.com/3",
+            query_used="molecular error",
+            is_fallback=False
+        )
+        self.assertTrue(check_anchor_gate(dna_in_abstract, ["dna", "damage"]))
+
+        # Word boundary: substrings like 'sedna' or 'kidnapping' must NOT trigger 'dna'
+        fake_dna = RetrievedPaper(
+            title="The celestial orbit of Sedna and trans-Neptunian objects",
+            abstract="Astrophysical dynamics in the scattered disc.",
+            authors=["Brown, M."],
+            pub_year="2005",
+            venue="ApJ",
+            citations=250,
+            url="https://example.com/4",
+            query_used="sedna",
+            is_fallback=False
+        )
+        self.assertFalse(check_anchor_gate(fake_dna, ["dna"]))
+
+    def test_reranker_rejection_of_unrelated_domain_paper(self):
+        """Verify local semantic reranker eliminates unrelated domain papers and prioritizes anchor-matched ones."""
+        from science_expander import DOMAINS
+
+        stoch_domain = next(d for d in DOMAINS if "Stochastic Thermodynamics" in d.name)
+        topic = GeneratedTopic(
+            index=1,
+            title="Thermodynamic Uncertainty Relations in DNA Damage Response",
+            primary_topic="DNA damage response",
+            secondary_topic=None,
+            domain=stoch_domain,
+            operator_name="Epistemic Analogy",
+            rationale="Applying nonequilibrium physics to cellular DNA repair fidelity.",
+            affinity=0.92,
+            primary_query='"DNA damage" ("stochastic thermodynamics" OR "fluctuation")',
+            fallback_query='"DNA damage" thermodynamics',
+            anchor_phrase="DNA damage",
+            anchor_terms=["dna", "damage", "response"]
+        )
+
+        unrelated = RetrievedPaper(
+            title="Nonequilibrium thermodynamics of ecology and food webs",
+            abstract="Energy flow and trophic networks analyzed via stochastic thermodynamics.",
+            authors=["Ecol, P."],
+            pub_year="2018",
+            venue="Oikos",
+            citations=300,
+            url="https://example.com/unrelated",
+            query_used="thermodynamics",
+            is_fallback=False
+        )
+
+        matched = RetrievedPaper(
+            title="Kinetic proofreading and dissipation in DNA damage repair pathways",
+            abstract="Stochastic thermodynamics of enzymatic fidelity during cellular DNA damage response.",
+            authors=["Bio, T."],
+            pub_year="2023",
+            venue="Biophys J",
+            citations=45,
+            url="https://example.com/matched",
+            query_used="dna thermodynamics",
+            is_fallback=False
+        )
+
+        candidates = [unrelated, matched]
+        ranked = ScholarLiteratureClient.rerank_and_filter_candidates(
+            candidates=candidates,
+            topic=topic,
+            anchor_terms=["dna", "damage", "response"],
+            axis="foundation",
+            min_similarity=0.35
+        )
+
+        # Unrelated paper must be filtered out despite high citation count
+        self.assertEqual(len(ranked), 1)
+        best_paper, score, sim = ranked[0]
+        self.assertEqual(best_paper.title, matched.title)
+        self.assertGreaterEqual(sim, 0.35)
+
+    def test_dna_damage_triad_contains_dna_and_relevance(self):
+        """Integration test: live triad retrieval for 'DNA damage response' strictly enforces 'dna' in all papers."""
+        from science_expander import DOMAINS
+
+        stoch_domain = next(d for d in DOMAINS if "Stochastic Thermodynamics" in d.name)
+        topic = GeneratedTopic(
+            index=1,
+            title="Thermodynamic Bounds on DNA Damage Response Fidelity",
+            primary_topic="DNA damage response",
+            secondary_topic=None,
+            domain=stoch_domain,
+            operator_name="Epistemic Analogy",
+            rationale="Applying nonequilibrium physics to DNA repair fidelity.",
+            affinity=0.92,
+            primary_query='"DNA damage" ("stochastic thermodynamics" OR "fluctuation")',
+            fallback_query='"DNA damage" thermodynamics',
+            anchor_phrase="DNA damage",
+            anchor_terms=["dna", "damage", "response"]
+        )
+
+        triad = ScholarLiteratureClient.fetch_triad(topic, silent=True)
+
+        for axis_name, paper in [("foundation", triad.foundation), ("frontier", triad.frontier), ("review", triad.review)]:
+            if paper is not None:
+                full_text = f"{paper.title} {paper.abstract or ''}".lower()
+                self.assertTrue(
+                    check_anchor_gate(paper, ["dna"]),
+                    f"Paper for axis {axis_name} ('{paper.title}') failed anchor gate check for 'dna'!"
+                )
+                import re
+                self.assertIsNotNone(
+                    re.search(r'\bdna\b', full_text),
+                    f"Axis {axis_name} paper ('{paper.title}') does not contain the word 'dna' in title or abstract!"
+                )
 
 
 if __name__ == "__main__":
