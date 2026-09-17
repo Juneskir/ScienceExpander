@@ -18,6 +18,7 @@ import streamlit.components.v1 as components
 from science_expander import (
     MultilingualBridge,
     TopicCrossBreeder,
+    DiscoveryMode,
     SemanticCorridorEngine,
     ScholarLiteratureClient,
     OpenAlexClient,
@@ -142,7 +143,7 @@ def compute_display_seeds(raw_seeds: List[str]) -> List[str]:
     return display_seeds
 
 
-def run_cross_breeding_core(raw_input: str, count: int = 10):
+def run_cross_breeding_core(raw_input: str, count: int = 10, mode: str = "balanced"):
     """Executes topic synthesis, bilingual translation, and graph generation."""
     raw_seeds = [t.strip() for t in raw_input.split(",") if t.strip()]
     if not raw_seeds:
@@ -151,7 +152,7 @@ def run_cross_breeding_core(raw_input: str, count: int = 10):
     display_seeds = compute_display_seeds(raw_seeds)
 
     # Cross-breeding
-    breeder = TopicCrossBreeder()
+    breeder = TopicCrossBreeder(mode=mode)
     topics = breeder.cross_breed(raw_seeds, count=count)
 
     # Attach bilingual labels to generated topics
@@ -214,6 +215,12 @@ def render_app():
 
         st.markdown("---")
         st.markdown("#### ⚙️ Engine Parameters")
+        discovery_mode = st.selectbox(
+            "Discovery Mode",
+            options=["balanced", "adjacent", "translational", "frontier"],
+            index=0,
+            help="Balanced: 60% adjacent sub-fields, 25% bioengineering, 15% fundamental physics leaps."
+        )
         topic_count = st.slider("Discovery Yield (Topics)", min_value=5, max_value=14, value=10, step=1)
 
         st.markdown("---")
@@ -279,7 +286,7 @@ def render_app():
     # Check if we need to run cross-breeding
     if generate_btn or not st.session_state.generated_topics:
         with st.spinner("Analyzing semantic domain affinity & generating interdisciplinary matrix..."):
-            raw_s, disp_s, tops, g_html = run_cross_breeding_core(user_input, topic_count)
+            raw_s, disp_s, tops, g_html = run_cross_breeding_core(user_input, topic_count, discovery_mode)
             st.session_state.seed_topics_list = raw_s
             st.session_state.display_seeds_list = disp_s
             st.session_state.generated_topics = tops

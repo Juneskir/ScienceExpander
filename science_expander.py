@@ -218,6 +218,21 @@ class ScienceCategory(str, Enum):
     GENERAL_SCIENCE = "general_science"
 
 
+class DiscoveryTier(str, Enum):
+    """Classifies ontology domains by epistemic distance from the seed topic."""
+    ADJACENT = "adjacent"            # High-yield intra-domain sub-field crossovers (60%)
+    TRANSLATIONAL = "translational"  # Applied bioengineering / methodology bridges (25%)
+    FRONTIER = "frontier"            # Deep fundamental physics/math leaps (15%)
+
+
+class DiscoveryMode(str, Enum):
+    """User-selectable discovery mode controlling tier distribution."""
+    BALANCED = "balanced"           # 60% adjacent, 25% translational, 15% frontier
+    ADJACENT = "adjacent"           # Prioritize sub-field crossovers
+    TRANSLATIONAL = "translational" # Prioritize applied engineering
+    FRONTIER = "frontier"           # Prioritize deep fundamental leaps (legacy behavior)
+
+
 CATEGORY_LEXICON: Dict[ScienceCategory, Set[str]] = {
     ScienceCategory.BIOLOGY: {
         "cell", "cellular", "gene", "genes", "genetic", "genetics", "dna", "rna", "protein",
@@ -310,6 +325,7 @@ class InterdisciplinaryDomain:
     name: str
     category_label: str
     primary_category: ScienceCategory
+    tier: DiscoveryTier
     affinities: Dict[ScienceCategory, float]
     methods: Tuple[str, ...]
     phenomena: Tuple[str, ...]
@@ -318,11 +334,624 @@ class InterdisciplinaryDomain:
     keywords: Tuple[str, ...]
 
 
+
 DOMAINS: Tuple[InterdisciplinaryDomain, ...] = (
+    # =========================================================================
+    # ADJACENT Sub-Discipline Domains (60% of balanced output)
+    # High-yield, actionable, realistic intra-domain crossovers
+    # =========================================================================
+    InterdisciplinaryDomain(
+        name="Epigenetics & Chromatin Dynamics",
+        category_label="Molecular & Cell Biology",
+        primary_category=ScienceCategory.BIOLOGY,
+        tier=DiscoveryTier.ADJACENT,
+        affinities={
+            ScienceCategory.BIOLOGY: 1.0,
+            ScienceCategory.PHYSICS: 0.4,
+            ScienceCategory.MATERIALS: 0.3,
+            ScienceCategory.MATHEMATICS: 0.4,
+            ScienceCategory.COMPUTER_SCIENCE: 0.5,
+            ScienceCategory.SOCIAL_COGNITIVE: 0.1,
+            ScienceCategory.GENERAL_SCIENCE: 0.8,
+        },
+        methods=(
+            "ChIP-seq Chromatin Profiling",
+            "Bisulfite Sequencing",
+            "ATAC-seq Accessibility Mapping",
+            "CRISPRi/a Epigenome Editing",
+        ),
+        phenomena=(
+            "Histone Methylation Crosstalk",
+            "DNA Methylation Reprogramming",
+            "Chromatin Remodeling Cascades",
+            "Enhancer-Promoter Looping",
+        ),
+        concepts=(
+            "Epigenetic Memory and Inheritance",
+            "Bivalent Chromatin States",
+            "Pioneer Transcription Factor Access",
+            "Polycomb/Trithorax Regulation",
+        ),
+        properties=(
+            "Transcriptional Plasticity",
+            "Epigenetic Stability",
+            "Chromatin Accessibility",
+            "Lineage Commitment Fidelity",
+        ),
+        keywords=("epigenetics", "chromatin remodeling", "histone modification"),
+    ),
+    InterdisciplinaryDomain(
+        name="Immunology & Immunometabolism",
+        category_label="Immunology & Infectious Disease",
+        primary_category=ScienceCategory.BIOLOGY,
+        tier=DiscoveryTier.ADJACENT,
+        affinities={
+            ScienceCategory.BIOLOGY: 1.0,
+            ScienceCategory.PHYSICS: 0.3,
+            ScienceCategory.MATERIALS: 0.4,
+            ScienceCategory.MATHEMATICS: 0.4,
+            ScienceCategory.COMPUTER_SCIENCE: 0.5,
+            ScienceCategory.SOCIAL_COGNITIVE: 0.2,
+            ScienceCategory.GENERAL_SCIENCE: 0.8,
+        },
+        methods=(
+            "Flow Cytometry and CyTOF Profiling",
+            "Single-Cell Immune Repertoire Sequencing",
+            "Adoptive T Cell Transfer Assays",
+            "Metabolic Flux Analysis in Immune Cells",
+        ),
+        phenomena=(
+            "Immune Evasion and Checkpoint Escape",
+            "T Cell Exhaustion and Dysfunction",
+            "Metabolic Reprogramming in Macrophages",
+            "Autoimmune Tolerance Breakdown",
+        ),
+        concepts=(
+            "Immunometabolic Crosstalk",
+            "Checkpoint Inhibitor Resistance",
+            "Regulatory T Cell Homeostasis",
+            "Trained Innate Immunity",
+        ),
+        properties=(
+            "Immune Surveillance Efficacy",
+            "Antigen Presentation Fidelity",
+            "Cytokine Signaling Specificity",
+            "Immunological Memory Durability",
+        ),
+        keywords=("immunology", "immune evasion", "immunometabolism"),
+    ),
+    InterdisciplinaryDomain(
+        name="Stem Cell Biology & Cellular Plasticity",
+        category_label="Regenerative & Developmental Biology",
+        primary_category=ScienceCategory.BIOLOGY,
+        tier=DiscoveryTier.ADJACENT,
+        affinities={
+            ScienceCategory.BIOLOGY: 1.0,
+            ScienceCategory.PHYSICS: 0.3,
+            ScienceCategory.MATERIALS: 0.6,
+            ScienceCategory.MATHEMATICS: 0.4,
+            ScienceCategory.COMPUTER_SCIENCE: 0.5,
+            ScienceCategory.SOCIAL_COGNITIVE: 0.1,
+            ScienceCategory.GENERAL_SCIENCE: 0.8,
+        },
+        methods=(
+            "Lineage Tracing with Genetic Reporters",
+            "Induced Pluripotent Stem Cell (iPSC) Reprogramming",
+            "Clonal Analysis and Fate Mapping",
+            "Direct Transdifferentiation Protocols",
+        ),
+        phenomena=(
+            "Cellular Dedifferentiation",
+            "Lineage Reprogramming Barriers",
+            "Stem Cell Niche Signaling",
+            "Asymmetric Cell Division",
+        ),
+        concepts=(
+            "Waddington Landscape and Cell Fate",
+            "Transcription Factor Cocktails for Reprogramming",
+            "Stem Cell Exhaustion and Aging",
+            "Regenerative Capacity and Tissue Homeostasis",
+        ),
+        properties=(
+            "Pluripotency Maintenance",
+            "Differentiation Efficiency",
+            "Reprogramming Fidelity",
+            "Self-Renewal Capacity",
+        ),
+        keywords=("stem cells", "cellular reprogramming", "lineage plasticity"),
+    ),
+    InterdisciplinaryDomain(
+        name="Single-Cell & Spatial Omics",
+        category_label="Genomics & Systems Biology",
+        primary_category=ScienceCategory.BIOLOGY,
+        tier=DiscoveryTier.ADJACENT,
+        affinities={
+            ScienceCategory.BIOLOGY: 1.0,
+            ScienceCategory.PHYSICS: 0.3,
+            ScienceCategory.MATERIALS: 0.3,
+            ScienceCategory.MATHEMATICS: 0.6,
+            ScienceCategory.COMPUTER_SCIENCE: 0.8,
+            ScienceCategory.SOCIAL_COGNITIVE: 0.2,
+            ScienceCategory.GENERAL_SCIENCE: 0.8,
+        },
+        methods=(
+            "Single-Cell RNA Sequencing (scRNA-seq)",
+            "Spatial Transcriptomics (Visium, MERFISH)",
+            "Multi-Omic Single-Cell Profiling",
+            "Trajectory Inference and Pseudotime Analysis",
+        ),
+        phenomena=(
+            "Cellular Heterogeneity Within Tissues",
+            "Rare Cell Type Discovery",
+            "Spatial Gene Expression Gradients",
+            "Clonal Dynamics in Tumors",
+        ),
+        concepts=(
+            "Cell Atlas Construction",
+            "Lineage Hierarchy Reconstruction",
+            "Spatial Niche Microenvironments",
+            "Multi-Modal Data Integration",
+        ),
+        properties=(
+            "Transcriptomic Resolution",
+            "Spatial Mapping Precision",
+            "Cell-Type Deconvolution Accuracy",
+            "Temporal Ordering Fidelity",
+        ),
+        keywords=("single-cell RNA-seq", "spatial transcriptomics", "cellular heterogeneity"),
+    ),
+    InterdisciplinaryDomain(
+        name="Cellular Bioenergetics & Metabolic Signaling",
+        category_label="Metabolism & Cell Biology",
+        primary_category=ScienceCategory.BIOLOGY,
+        tier=DiscoveryTier.ADJACENT,
+        affinities={
+            ScienceCategory.BIOLOGY: 1.0,
+            ScienceCategory.PHYSICS: 0.5,
+            ScienceCategory.MATERIALS: 0.3,
+            ScienceCategory.MATHEMATICS: 0.5,
+            ScienceCategory.COMPUTER_SCIENCE: 0.4,
+            ScienceCategory.SOCIAL_COGNITIVE: 0.1,
+            ScienceCategory.GENERAL_SCIENCE: 0.8,
+        },
+        methods=(
+            "Seahorse Metabolic Flux Analysis",
+            "Isotope Tracing and Metabolomics",
+            "Mitochondrial Membrane Potential Imaging",
+            "mTOR/AMPK Pathway Profiling",
+        ),
+        phenomena=(
+            "Warburg Effect and Aerobic Glycolysis",
+            "Mitochondrial Dysfunction and ROS Accumulation",
+            "Nutrient Sensing and Autophagy",
+            "ER Stress and Unfolded Protein Response",
+        ),
+        concepts=(
+            "Metabolic Reprogramming in Disease",
+            "Mitochondria-ER Contact Sites",
+            "NAD+ Metabolism and Sirtuins",
+            "Lipid Droplet Biogenesis and Signaling",
+        ),
+        properties=(
+            "Bioenergetic Efficiency",
+            "Metabolic Flexibility",
+            "Oxidative Stress Resilience",
+            "Nutrient Sensing Sensitivity",
+        ),
+        keywords=("mitochondria", "metabolic signaling", "cellular bioenergetics"),
+    ),
+    InterdisciplinaryDomain(
+        name="Neuroscience & Neural Circuit Dynamics",
+        category_label="Neurobiology & Cognitive Science",
+        primary_category=ScienceCategory.BIOLOGY,
+        tier=DiscoveryTier.ADJACENT,
+        affinities={
+            ScienceCategory.BIOLOGY: 1.0,
+            ScienceCategory.PHYSICS: 0.5,
+            ScienceCategory.MATERIALS: 0.3,
+            ScienceCategory.MATHEMATICS: 0.6,
+            ScienceCategory.COMPUTER_SCIENCE: 0.7,
+            ScienceCategory.SOCIAL_COGNITIVE: 0.8,
+            ScienceCategory.GENERAL_SCIENCE: 0.8,
+        },
+        methods=(
+            "Optogenetic Circuit Manipulation",
+            "Calcium Imaging and Fiber Photometry",
+            "Connectomics and Electron Microscopy",
+            "Patch-Clamp Electrophysiology",
+        ),
+        phenomena=(
+            "Synaptic Plasticity and LTP/LTD",
+            "Neural Oscillation Synchronization",
+            "Neurodegeneration and Protein Aggregation",
+            "Cortical Remapping After Injury",
+        ),
+        concepts=(
+            "Engram Formation and Memory Encoding",
+            "Glial-Neuronal Metabolic Coupling",
+            "Blood-Brain Barrier Permeability",
+            "Neuroimmune Interactions",
+        ),
+        properties=(
+            "Synaptic Transmission Fidelity",
+            "Circuit-Level Computation",
+            "Neuroplasticity",
+            "Neuroprotective Resilience",
+        ),
+        keywords=("neural circuits", "synaptic plasticity", "neuroscience"),
+    ),
+    InterdisciplinaryDomain(
+        name="Computational Chemistry & Drug Discovery",
+        category_label="Chemistry & Pharmacology",
+        primary_category=ScienceCategory.MATERIALS,
+        tier=DiscoveryTier.ADJACENT,
+        affinities={
+            ScienceCategory.BIOLOGY: 0.85,
+            ScienceCategory.PHYSICS: 0.6,
+            ScienceCategory.MATERIALS: 1.0,
+            ScienceCategory.MATHEMATICS: 0.6,
+            ScienceCategory.COMPUTER_SCIENCE: 0.8,
+            ScienceCategory.SOCIAL_COGNITIVE: 0.2,
+            ScienceCategory.GENERAL_SCIENCE: 0.8,
+        },
+        methods=(
+            "Molecular Docking and Virtual Screening",
+            "Molecular Dynamics Simulations",
+            "QSAR Modeling and Machine Learning",
+            "Fragment-Based Drug Design",
+        ),
+        phenomena=(
+            "Allosteric Binding Site Modulation",
+            "Drug Resistance Mutations",
+            "Prodrug Activation Cascades",
+            "Polypharmacology and Off-Target Effects",
+        ),
+        concepts=(
+            "Structure-Activity Relationships (SAR)",
+            "Pharmacophore Mapping",
+            "ADMET Property Prediction",
+            "Target Engagement and Selectivity",
+        ),
+        properties=(
+            "Binding Affinity and Selectivity",
+            "Bioavailability",
+            "Metabolic Stability",
+            "Therapeutic Window",
+        ),
+        keywords=("drug discovery", "molecular docking", "computational chemistry"),
+    ),
+    InterdisciplinaryDomain(
+        name="Electrochemistry & Energy Storage",
+        category_label="Chemistry & Materials Science",
+        primary_category=ScienceCategory.MATERIALS,
+        tier=DiscoveryTier.ADJACENT,
+        affinities={
+            ScienceCategory.BIOLOGY: 0.3,
+            ScienceCategory.PHYSICS: 0.85,
+            ScienceCategory.MATERIALS: 1.0,
+            ScienceCategory.MATHEMATICS: 0.5,
+            ScienceCategory.COMPUTER_SCIENCE: 0.4,
+            ScienceCategory.SOCIAL_COGNITIVE: 0.2,
+            ScienceCategory.GENERAL_SCIENCE: 0.8,
+        },
+        methods=(
+            "Cyclic Voltammetry and Impedance Spectroscopy",
+            "In Situ X-ray Diffraction Under Cycling",
+            "Electrocatalytic Activity Screening",
+            "Solid-State Electrolyte Characterization",
+        ),
+        phenomena=(
+            "Lithium Dendrite Formation",
+            "Solid Electrolyte Interphase Growth",
+            "Oxygen Evolution Reaction Catalysis",
+            "Ion Intercalation Dynamics",
+        ),
+        concepts=(
+            "Beyond-Lithium Battery Chemistries",
+            "Electrocatalyst Design Principles",
+            "Interfacial Charge Transfer",
+            "Redox Flow Battery Architectures",
+        ),
+        properties=(
+            "Energy Density and Cycle Life",
+            "Coulombic Efficiency",
+            "Rate Capability",
+            "Electrochemical Stability Window",
+        ),
+        keywords=("electrochemistry", "energy storage", "electrocatalysis"),
+    ),
+    InterdisciplinaryDomain(
+        name="Condensed Matter & Quantum Materials",
+        category_label="Physics & Materials Science",
+        primary_category=ScienceCategory.PHYSICS,
+        tier=DiscoveryTier.ADJACENT,
+        affinities={
+            ScienceCategory.BIOLOGY: 0.2,
+            ScienceCategory.PHYSICS: 1.0,
+            ScienceCategory.MATERIALS: 1.0,
+            ScienceCategory.MATHEMATICS: 0.8,
+            ScienceCategory.COMPUTER_SCIENCE: 0.6,
+            ScienceCategory.SOCIAL_COGNITIVE: 0.1,
+            ScienceCategory.GENERAL_SCIENCE: 0.7,
+        },
+        methods=(
+            "Angle-Resolved Photoemission Spectroscopy (ARPES)",
+            "Neutron Scattering and Inelastic Diffraction",
+            "Muon Spin Rotation/Relaxation",
+            "Scanning Tunneling Microscopy at mK",
+        ),
+        phenomena=(
+            "Topological Insulator Surface States",
+            "Strongly Correlated Electron Behavior",
+            "Unconventional Superconductivity",
+            "Quantum Spin Liquid Formation",
+        ),
+        concepts=(
+            "Band Topology and Berry Phase",
+            "Mott Insulator Transitions",
+            "Twisted Bilayer Graphene Flat Bands",
+            "Majorana Fermion Braiding",
+        ),
+        properties=(
+            "Topological Protection",
+            "Correlation Strength",
+            "Superconducting Critical Temperature",
+            "Quantum Coherence Length",
+        ),
+        keywords=("condensed matter", "topological insulators", "quantum materials"),
+    ),
+    InterdisciplinaryDomain(
+        name="Computational Genomics & Bioinformatics",
+        category_label="Bioinformatics & Data Science",
+        primary_category=ScienceCategory.COMPUTER_SCIENCE,
+        tier=DiscoveryTier.ADJACENT,
+        affinities={
+            ScienceCategory.BIOLOGY: 1.0,
+            ScienceCategory.PHYSICS: 0.3,
+            ScienceCategory.MATERIALS: 0.2,
+            ScienceCategory.MATHEMATICS: 0.7,
+            ScienceCategory.COMPUTER_SCIENCE: 1.0,
+            ScienceCategory.SOCIAL_COGNITIVE: 0.2,
+            ScienceCategory.GENERAL_SCIENCE: 0.8,
+        },
+        methods=(
+            "Genome-Wide Association Studies (GWAS)",
+            "De Novo Genome Assembly Algorithms",
+            "Variant Calling and Annotation Pipelines",
+            "Phylogenomic Tree Reconstruction",
+        ),
+        phenomena=(
+            "Structural Variant Discovery",
+            "Alternative Splicing Complexity",
+            "Horizontal Gene Transfer Events",
+            "Regulatory Element Evolution",
+        ),
+        concepts=(
+            "Pan-Genome and Core Genome Analysis",
+            "Long-Read Sequencing Error Correction",
+            "Functional Annotation Databases",
+            "Polygenic Risk Score Modeling",
+        ),
+        properties=(
+            "Assembly Contiguity",
+            "Variant Detection Sensitivity",
+            "Annotation Completeness",
+            "Phylogenetic Resolution",
+        ),
+        keywords=("bioinformatics", "computational genomics", "genome assembly"),
+    ),
+    # =========================================================================
+    # TRANSLATIONAL / Applied Bioengineering Domains (25% of balanced output)
+    # =========================================================================
+    InterdisciplinaryDomain(
+        name="Biomaterials & Tissue Engineering",
+        category_label="Bioengineering & Regenerative Medicine",
+        primary_category=ScienceCategory.MATERIALS,
+        tier=DiscoveryTier.TRANSLATIONAL,
+        affinities={
+            ScienceCategory.BIOLOGY: 1.0,
+            ScienceCategory.PHYSICS: 0.5,
+            ScienceCategory.MATERIALS: 1.0,
+            ScienceCategory.MATHEMATICS: 0.4,
+            ScienceCategory.COMPUTER_SCIENCE: 0.4,
+            ScienceCategory.SOCIAL_COGNITIVE: 0.2,
+            ScienceCategory.GENERAL_SCIENCE: 0.8,
+        },
+        methods=(
+            "3D Bioprinting and Scaffold Fabrication",
+            "Organoid Culture and Maturation",
+            "Microencapsulation and Hydrogel Design",
+            "Decellularized Matrix Engineering",
+        ),
+        phenomena=(
+            "Cell-Biomaterial Interface Remodeling",
+            "Vascularization in Engineered Tissues",
+            "Immune Response to Implanted Materials",
+            "Mechanically-Guided Tissue Morphogenesis",
+        ),
+        concepts=(
+            "Smart Hydrogel Responsive Systems",
+            "Organoid-Based Disease Modeling",
+            "Bioresorbable Scaffold Architecture",
+            "Cell-Laden Bioink Formulations",
+        ),
+        properties=(
+            "Biocompatibility",
+            "Mechanical Compliance Matching",
+            "Degradation Kinetics",
+            "Cell Viability and Engraftment",
+        ),
+        keywords=("organoids", "tissue engineering", "biomaterials"),
+    ),
+    InterdisciplinaryDomain(
+        name="High-Throughput Screening & Lab Automation",
+        category_label="Biotechnology & Assay Development",
+        primary_category=ScienceCategory.BIOLOGY,
+        tier=DiscoveryTier.TRANSLATIONAL,
+        affinities={
+            ScienceCategory.BIOLOGY: 1.0,
+            ScienceCategory.PHYSICS: 0.3,
+            ScienceCategory.MATERIALS: 0.5,
+            ScienceCategory.MATHEMATICS: 0.5,
+            ScienceCategory.COMPUTER_SCIENCE: 0.8,
+            ScienceCategory.SOCIAL_COGNITIVE: 0.2,
+            ScienceCategory.GENERAL_SCIENCE: 0.8,
+        },
+        methods=(
+            "Automated Liquid Handling Platforms",
+            "Combinatorial Library Screening",
+            "CRISPR Knockout Screening (Genome-Wide)",
+            "Phenotypic High-Content Imaging",
+        ),
+        phenomena=(
+            "Hit-to-Lead Compound Attrition",
+            "Assay Interference and False Positives",
+            "Dose-Response Curve Variability",
+            "Synthetic Lethality Interactions",
+        ),
+        concepts=(
+            "Massively Parallel Reporter Assays",
+            "AI-Driven Compound Prioritization",
+            "Miniaturized Assay Formats",
+            "Chemical Genetic Interaction Maps",
+        ),
+        properties=(
+            "Screening Throughput",
+            "Hit Rate and Selectivity",
+            "Assay Robustness (Z-Factor)",
+            "Reproducibility Across Replicates",
+        ),
+        keywords=("high-throughput screening", "CRISPR screening", "lab automation"),
+    ),
+    InterdisciplinaryDomain(
+        name="CRISPR Therapeutics & Gene Therapy",
+        category_label="Genetic Medicine & Biotechnology",
+        primary_category=ScienceCategory.BIOLOGY,
+        tier=DiscoveryTier.TRANSLATIONAL,
+        affinities={
+            ScienceCategory.BIOLOGY: 1.0,
+            ScienceCategory.PHYSICS: 0.2,
+            ScienceCategory.MATERIALS: 0.5,
+            ScienceCategory.MATHEMATICS: 0.3,
+            ScienceCategory.COMPUTER_SCIENCE: 0.5,
+            ScienceCategory.SOCIAL_COGNITIVE: 0.3,
+            ScienceCategory.GENERAL_SCIENCE: 0.8,
+        },
+        methods=(
+            "Base Editing and Prime Editing",
+            "AAV and Lipid Nanoparticle Delivery Systems",
+            "In Vivo Gene Editing in Animal Models",
+            "Guide RNA Design and Off-Target Profiling",
+        ),
+        phenomena=(
+            "Off-Target Mutagenesis and Genotoxicity",
+            "Immune Responses to Editing Machinery",
+            "Mosaicism in Edited Organisms",
+            "Epigenetic Silencing of Transgenes",
+        ),
+        concepts=(
+            "Therapeutic Gene Correction Strategies",
+            "Ex Vivo vs In Vivo Editing Paradigms",
+            "Tissue-Specific Promoter Engineering",
+            "Multiplexed Gene Regulation Circuits",
+        ),
+        properties=(
+            "Editing Efficiency and Specificity",
+            "Delivery Tropism",
+            "Transgene Expression Durability",
+            "Safety and Immunogenicity Profile",
+        ),
+        keywords=("CRISPR therapeutics", "gene therapy", "base editing"),
+    ),
+    InterdisciplinaryDomain(
+        name="Clinical Biomarkers & Precision Diagnostics",
+        category_label="Translational Medicine & Diagnostics",
+        primary_category=ScienceCategory.BIOLOGY,
+        tier=DiscoveryTier.TRANSLATIONAL,
+        affinities={
+            ScienceCategory.BIOLOGY: 1.0,
+            ScienceCategory.PHYSICS: 0.3,
+            ScienceCategory.MATERIALS: 0.5,
+            ScienceCategory.MATHEMATICS: 0.6,
+            ScienceCategory.COMPUTER_SCIENCE: 0.7,
+            ScienceCategory.SOCIAL_COGNITIVE: 0.4,
+            ScienceCategory.GENERAL_SCIENCE: 0.8,
+        },
+        methods=(
+            "Liquid Biopsy and ctDNA Profiling",
+            "Multiplex Immunoassay Panels",
+            "Mass Spectrometry-Based Proteomics",
+            "Digital PCR Quantification",
+        ),
+        phenomena=(
+            "Biomarker Heterogeneity Across Patients",
+            "Circulating Tumor Cell Shedding",
+            "Early Detection Signal Dilution",
+            "Companion Diagnostic Co-Development",
+        ),
+        concepts=(
+            "Multi-Analyte Diagnostic Panels",
+            "Minimal Residual Disease Monitoring",
+            "Predictive vs Prognostic Biomarker Validation",
+            "Point-of-Care Diagnostic Platforms",
+        ),
+        properties=(
+            "Diagnostic Sensitivity and Specificity",
+            "Predictive Value",
+            "Analytical Reproducibility",
+            "Clinical Actionability",
+        ),
+        keywords=("biomarkers", "precision diagnostics", "liquid biopsy"),
+    ),
+    InterdisciplinaryDomain(
+        name="Microfluidics & Organ-on-Chip",
+        category_label="Bioengineering & Microphysiology",
+        primary_category=ScienceCategory.MATERIALS,
+        tier=DiscoveryTier.TRANSLATIONAL,
+        affinities={
+            ScienceCategory.BIOLOGY: 1.0,
+            ScienceCategory.PHYSICS: 0.6,
+            ScienceCategory.MATERIALS: 1.0,
+            ScienceCategory.MATHEMATICS: 0.5,
+            ScienceCategory.COMPUTER_SCIENCE: 0.5,
+            ScienceCategory.SOCIAL_COGNITIVE: 0.2,
+            ScienceCategory.GENERAL_SCIENCE: 0.8,
+        },
+        methods=(
+            "PDMS Soft Lithography Fabrication",
+            "Droplet Microfluidic Encapsulation",
+            "Multi-Organ Chip Integration",
+            "Real-Time Biosensor Coupling",
+        ),
+        phenomena=(
+            "Laminar Flow Patterning",
+            "Shear Stress-Induced Cell Responses",
+            "Gradient Generation in Microchannels",
+            "Compartmentalized Co-Culture Dynamics",
+        ),
+        concepts=(
+            "Organ-on-Chip Disease Models",
+            "Lab-on-Chip Diagnostic Devices",
+            "Microphysiological System Validation",
+            "Patient-Derived Chip Platforms",
+        ),
+        properties=(
+            "Physiological Relevance",
+            "Throughput and Parallelization",
+            "Fluid Control Precision",
+            "In Vivo Predictive Correlation",
+        ),
+        keywords=("organ-on-chip", "microfluidics", "lab-on-chip"),
+    ),
+    # =========================================================================
+    # FRONTIER Domains (15% of balanced output)
+    # Deep fundamental physics/math/CS leaps — original ontology
+    # =========================================================================
     InterdisciplinaryDomain(
         name="Biophysics & Mechanobiology",
         category_label="Physics & Biological Physics",
         primary_category=ScienceCategory.PHYSICS,
+        tier=DiscoveryTier.FRONTIER,
         affinities={
             ScienceCategory.BIOLOGY: 1.0,
             ScienceCategory.MATERIALS: 0.9,
@@ -362,6 +991,7 @@ DOMAINS: Tuple[InterdisciplinaryDomain, ...] = (
         name="Systems Biology & Gene Regulatory Networks",
         category_label="Computational & Quantitative Biology",
         primary_category=ScienceCategory.BIOLOGY,
+        tier=DiscoveryTier.FRONTIER,
         affinities={
             ScienceCategory.BIOLOGY: 1.0,
             ScienceCategory.MATHEMATICS: 0.9,
@@ -391,7 +1021,7 @@ DOMAINS: Tuple[InterdisciplinaryDomain, ...] = (
         ),
         properties=(
             "Attractor Stability",
-            "Bistable Switchability",
+            "Regulatory Switchability",
             "Noise Buffering",
             "Dynamical Homeostasis",
         ),
@@ -401,6 +1031,7 @@ DOMAINS: Tuple[InterdisciplinaryDomain, ...] = (
         name="Stochastic Thermodynamics of Living Systems",
         category_label="Non-Equilibrium Physics & Biophysics",
         primary_category=ScienceCategory.PHYSICS,
+        tier=DiscoveryTier.FRONTIER,
         affinities={
             ScienceCategory.BIOLOGY: 1.0,
             ScienceCategory.PHYSICS: 1.0,
@@ -437,9 +1068,10 @@ DOMAINS: Tuple[InterdisciplinaryDomain, ...] = (
         keywords=("stochastic thermodynamics", "nonequilibrium energetics", "thermodynamic uncertainty relation"),
     ),
     InterdisciplinaryDomain(
-        name="Active Matter & Microfluidics",
+        name="Active Matter & Collective Dynamics",
         category_label="Soft Matter Physics & Fluid Mechanics",
         primary_category=ScienceCategory.PHYSICS,
+        tier=DiscoveryTier.FRONTIER,
         affinities={
             ScienceCategory.BIOLOGY: 0.95,
             ScienceCategory.PHYSICS: 1.0,
@@ -451,12 +1083,12 @@ DOMAINS: Tuple[InterdisciplinaryDomain, ...] = (
         },
         methods=(
             "Microfluidic Droplet Confinement",
-            "Hydrodynamic Flow Field Velocimetry",
             "Continuum Active Gel Hydrodynamics",
-            "Optical Vorticity Trapping",
+            "Particle Image Velocimetry",
+            "Agent-Based Modeling of Self-Propulsion",
         ),
         phenomena=(
-            "Motility-Induced Phase Separation (MIPS)",
+            "Motility-Induced Phase Separation",
             "Collective Bacterial Swarming",
             "Active Cytoplasmic Streaming",
             "Topological Defect Motion",
@@ -464,21 +1096,22 @@ DOMAINS: Tuple[InterdisciplinaryDomain, ...] = (
         concepts=(
             "Self-Propelled Colloidal Engines",
             "Active Stress Tensors",
-            "Microfluidic Compartmentalization",
-            "Non-Newtonian Rheology Matrices",
+            "Non-Equilibrium Pattern Formation",
+            "Active Nematics and Polar Order",
         ),
         properties=(
             "Non-Equilibrium Self-Assembly",
             "Coordinated Swarming",
-            "Shear-Induced Transport",
+            "Active Transport Efficiency",
             "Directed Flow Invariance",
         ),
-        keywords=("active matter", "microfluidics", "cytoplasmic streaming"),
+        keywords=("active matter", "collective dynamics", "cytoplasmic streaming"),
     ),
     InterdisciplinaryDomain(
         name="Information Theory in Biological Signalling",
         category_label="Information Theory & Quantitative Biology",
         primary_category=ScienceCategory.COMPUTER_SCIENCE,
+        tier=DiscoveryTier.FRONTIER,
         affinities={
             ScienceCategory.BIOLOGY: 1.0,
             ScienceCategory.COMPUTER_SCIENCE: 0.9,
@@ -518,6 +1151,7 @@ DOMAINS: Tuple[InterdisciplinaryDomain, ...] = (
         name="Complex Network Science & Nonlinear Dynamics",
         category_label="Mathematics & Complex Systems",
         primary_category=ScienceCategory.MATHEMATICS,
+        tier=DiscoveryTier.FRONTIER,
         affinities={
             ScienceCategory.BIOLOGY: 0.95,
             ScienceCategory.PHYSICS: 0.95,
@@ -554,9 +1188,10 @@ DOMAINS: Tuple[InterdisciplinaryDomain, ...] = (
         keywords=("complex networks", "critical transitions", "nonlinear dynamics"),
     ),
     InterdisciplinaryDomain(
-        name="Bio-Imaging, Optical Diffraction & Inverse Problems",
+        name="Bio-Imaging & Inverse Problems",
         category_label="Optics & Applied Physics",
         primary_category=ScienceCategory.PHYSICS,
+        tier=DiscoveryTier.FRONTIER,
         affinities={
             ScienceCategory.BIOLOGY: 1.0,
             ScienceCategory.PHYSICS: 0.95,
@@ -573,16 +1208,16 @@ DOMAINS: Tuple[InterdisciplinaryDomain, ...] = (
             "Adaptive Optics Wavefront Correction",
         ),
         phenomena=(
-            "Sub-Diffraction Waveguide Localization",
-            "Optical Phase Singularity",
-            "Scattering-Induced Speckle Correlation",
+            "Sub-Diffraction Localization",
+            "Label-Free Phase Contrast Enhancement",
+            "Photodamage and Phototoxicity",
             "Evanescent Wave Coupling",
         ),
         concepts=(
             "Inverse Scattering Algorithms",
             "Single-Molecule Localization Precision",
             "Wavefront Engineering",
-            "High-Numerical-Aperture Focal Fields",
+            "Computational Microscopy",
         ),
         properties=(
             "Spatial Resolution Fidelity",
@@ -590,12 +1225,13 @@ DOMAINS: Tuple[InterdisciplinaryDomain, ...] = (
             "Non-Invasive Penetration",
             "Dynamic Phase Sensitivity",
         ),
-        keywords=("super-resolution imaging", "cryo-electron tomography", "inverse problems in optics"),
+        keywords=("super-resolution imaging", "cryo-electron tomography", "computational microscopy"),
     ),
     InterdisciplinaryDomain(
         name="Topological Data Analysis & Differential Geometry",
         category_label="Mathematics & Theoretical Physics",
         primary_category=ScienceCategory.MATHEMATICS,
+        tier=DiscoveryTier.FRONTIER,
         affinities={
             ScienceCategory.MATHEMATICS: 1.0,
             ScienceCategory.PHYSICS: 0.95,
@@ -635,6 +1271,7 @@ DOMAINS: Tuple[InterdisciplinaryDomain, ...] = (
         name="Synthetic Biology & Morphogenetic Engineering",
         category_label="Bioengineering & Developmental Biology",
         primary_category=ScienceCategory.BIOLOGY,
+        tier=DiscoveryTier.FRONTIER,
         affinities={
             ScienceCategory.BIOLOGY: 1.0,
             ScienceCategory.MATERIALS: 0.85,
@@ -674,6 +1311,7 @@ DOMAINS: Tuple[InterdisciplinaryDomain, ...] = (
         name="Non-Equilibrium Thermodynamics & Statistical Physics",
         category_label="Theoretical & Statistical Physics",
         primary_category=ScienceCategory.PHYSICS,
+        tier=DiscoveryTier.FRONTIER,
         affinities={
             ScienceCategory.PHYSICS: 1.0,
             ScienceCategory.MATERIALS: 0.95,
@@ -713,6 +1351,7 @@ DOMAINS: Tuple[InterdisciplinaryDomain, ...] = (
         name="Quantum Information & Metrology",
         category_label="Quantum Physics & Information Science",
         primary_category=ScienceCategory.PHYSICS,
+        tier=DiscoveryTier.FRONTIER,
         affinities={
             ScienceCategory.PHYSICS: 1.0,
             ScienceCategory.COMPUTER_SCIENCE: 0.95,
@@ -749,48 +1388,10 @@ DOMAINS: Tuple[InterdisciplinaryDomain, ...] = (
         keywords=("quantum sensing", "quantum metrology", "quantum coherence"),
     ),
     InterdisciplinaryDomain(
-        name="Metamaterials & Nanophotonics",
-        category_label="Materials Science & Applied Physics",
-        primary_category=ScienceCategory.MATERIALS,
-        affinities={
-            ScienceCategory.MATERIALS: 1.0,
-            ScienceCategory.PHYSICS: 1.0,
-            ScienceCategory.COMPUTER_SCIENCE: 0.5,
-            ScienceCategory.MATHEMATICS: 0.6,
-            ScienceCategory.BIOLOGY: 0.25,
-            ScienceCategory.SOCIAL_COGNITIVE: 0.05,
-            ScienceCategory.GENERAL_SCIENCE: 0.7,
-        },
-        methods=(
-            "Transformation Optics Inversion",
-            "Subwavelength Plasmonic Near-Field Imaging",
-            "Inverse Photonic Bandgap Design",
-            "Chiral Optical Metasurface Engineering",
-        ),
-        phenomena=(
-            "Negative Refractive Index Propagation",
-            "Fano Resonance Coupling",
-            "Topological Edge State Transport",
-            "Localized Surface Plasmon Resonance",
-        ),
-        concepts=(
-            "Hyperbolic Metamaterial Cavities",
-            "Phase-Change Nanophotonic Scaffolds",
-            "Sub-Diffraction Resonators",
-            "Zero-Index Optical Matrices",
-        ),
-        properties=(
-            "Wavefront Manipulation",
-            "Sub-Diffraction Localization",
-            "Broadband Absorption",
-            "Polarization Control",
-        ),
-        keywords=("metamaterials", "nanophotonics", "plasmonic resonance"),
-    ),
-    InterdisciplinaryDomain(
         name="Evolutionary Game Dynamics & Population Ecology",
         category_label="Applied Mathematics & Evolutionary Biology",
         primary_category=ScienceCategory.SOCIAL_COGNITIVE,
+        tier=DiscoveryTier.FRONTIER,
         affinities={
             ScienceCategory.BIOLOGY: 0.9,
             ScienceCategory.SOCIAL_COGNITIVE: 1.0,
@@ -826,46 +1427,8 @@ DOMAINS: Tuple[InterdisciplinaryDomain, ...] = (
         ),
         keywords=("evolutionary game theory", "replicator dynamics", "population dynamics"),
     ),
-    InterdisciplinaryDomain(
-        name="Information Geometry & Statistical Manifolds",
-        category_label="Differential Geometry & Statistics",
-        primary_category=ScienceCategory.MATHEMATICS,
-        affinities={
-            ScienceCategory.MATHEMATICS: 1.0,
-            ScienceCategory.COMPUTER_SCIENCE: 0.95,
-            ScienceCategory.PHYSICS: 0.85,
-            ScienceCategory.SOCIAL_COGNITIVE: 0.7,
-            ScienceCategory.BIOLOGY: 0.55,
-            ScienceCategory.MATERIALS: 0.4,
-            ScienceCategory.GENERAL_SCIENCE: 0.8,
-        },
-        methods=(
-            "Fisher Information Metric Decompositions",
-            "Kullback-Leibler Divergence Geometry",
-            "Natural Gradient Formulations",
-            "Differential Geometric Statistics",
-        ),
-        phenomena=(
-            "Curvature-Driven Estimation Drift",
-            "Information Geometric Phase Transitions",
-            "Riemannian Metric Contraction",
-            "Geodesic Asymptotics",
-        ),
-        concepts=(
-            "Statistical Manifolds and Dual Connections",
-            "Fisher Information Riemannian Metrics",
-            "Information Monotonicity",
-            "Alpha-Connections",
-        ),
-        properties=(
-            "Estimation Invariance",
-            "Sample Complexity Bounds",
-            "Geometric Efficiency",
-            "Cramer-Rao Optimality",
-        ),
-        keywords=("information geometry", "Fisher information metric", "statistical manifold"),
-    ),
 )
+
 
 
 # =====================================================================
@@ -1132,9 +1695,10 @@ class TopicCrossBreeder:
     via formal epistemic transfer operators (without paid LLMs).
     """
 
-    def __init__(self, seed: Optional[int] = None, vector_engine: Optional[SemanticCorridorEngine] = None):
+    def __init__(self, seed: Optional[int] = None, vector_engine: Optional[SemanticCorridorEngine] = None, mode: str = DiscoveryMode.BALANCED):
         self.rng = random.Random(seed)
         self.vector_engine = vector_engine or SemanticCorridorEngine.get_instance()
+        self.mode = mode
 
     def cross_breed(self, topics: List[str], count: int = 10) -> List[GeneratedTopic]:
         if not topics:
@@ -1190,48 +1754,50 @@ class TopicCrossBreeder:
                 concept = self.rng.choice(domain.concepts)
                 prop = self.rng.choice(domain.properties)
                 domain_short = domain.name.split('&')[0].strip()
+                domain_kw = domain.keywords[0].title()
 
-                # Operator 1: Methodological Transfer
-                m_title = f"{method} in {fmt_topic}: Resolving {prop}"
-                m_rat = f"Transfers {domain.name} methods ({method}) to investigate {prop.lower()} in {fmt_topic}."
-                candidates.append(self._build_candidate(
-                    title=m_title,
-                    primary_topic=fmt_topic,
-                    secondary_topic=None,
-                    domain=domain,
-                    operator_name="Methodological Transfer",
-                    rationale=m_rat,
-                    affinity=aff,
-                    display_primary_topic=disp_topic
-                ))
+                if domain.tier == DiscoveryTier.ADJACENT:
+                    titles = [
+                        f"{concept} in {fmt_topic}: Mechanisms of {prop}",
+                        f"Targeting {phenom} in {fmt_topic}: A {domain_short} Perspective",
+                        f"{fmt_topic} Meets {domain_short}: The Role of {concept}",
+                        f"The Role of {concept} in {fmt_topic}",
+                        f"{domain_kw} and {fmt_topic}: Bridging {domain_short}",
+                    ]
+                    rat = f"Investigates {fmt_topic} through the adjacent framework of {domain.name}, focusing on {concept.lower()}."
+                    op_name = "Sub-Disciplinary Intersection"
+                elif domain.tier == DiscoveryTier.TRANSLATIONAL:
+                    titles = [
+                        f"{method} for {fmt_topic}: Overcoming {prop}",
+                        f"Engineering {fmt_topic} with {concept}: A {domain_short} Approach",
+                        f"From Bench to Bedside: {concept} in {fmt_topic}",
+                        f"{domain_short} Strategies for {fmt_topic}",
+                    ]
+                    rat = f"Applies {domain.name} engineering approaches ({method}) to translate findings in {fmt_topic}."
+                    op_name = "Translational Bioengineering"
+                else:
+                    titles = [
+                        f"{concept} in {fmt_topic}: A {domain_short} Framework",
+                        f"Applying {method} to {fmt_topic}: Resolving {prop}",
+                        f"{fmt_topic} Through the Lens of {domain_short}",
+                        f"{phenom}: Implications for {fmt_topic}",
+                    ]
+                    rat = f"Synthesizes {fmt_topic} utilizing deep concepts ({concept.lower()}) from {domain.name}."
+                    op_name = "Fundamental Epistemic Leap"
 
-                # Operator 2: Mechanistic Analogy & Dynamics
-                p_title = f"{phenom} Dynamics in {fmt_topic}: Mechanisms of {prop}"
-                p_rat = f"Analyzes {fmt_topic} through the lens of {phenom.lower()}, mapping dynamic transitions to {prop.lower()}."
-                candidates.append(self._build_candidate(
-                    title=p_title,
-                    primary_topic=fmt_topic,
-                    secondary_topic=None,
-                    domain=domain,
-                    operator_name="Mechanistic Analogy",
-                    rationale=p_rat,
-                    affinity=aff,
-                    display_primary_topic=disp_topic
-                ))
-
-                # Operator 3: Structural & Bio-Physical Coupling
-                c_title = f"Coupling {concept} with {fmt_topic}: Implications for {prop}"
-                c_rat = f"Investigates the interfacial interplay between {concept.lower()} and {fmt_topic}."
-                candidates.append(self._build_candidate(
-                    title=c_title,
-                    primary_topic=fmt_topic,
-                    secondary_topic=None,
-                    domain=domain,
-                    operator_name="Structural Coupling",
-                    rationale=c_rat,
-                    affinity=aff,
-                    display_primary_topic=disp_topic
-                ))
+                # Generate 3 candidates per domain to ensure variety when sorting by vector/affinity score
+                sampled_titles = self.rng.sample(titles, k=min(3, len(titles)))
+                for title in sampled_titles:
+                    candidates.append(self._build_candidate(
+                        title=title,
+                        primary_topic=fmt_topic,
+                        secondary_topic=None,
+                        domain=domain,
+                        operator_name=op_name,
+                        rationale=rat,
+                        affinity=aff,
+                        display_primary_topic=disp_topic
+                    ))
 
         # Operator 4: Dual-Topic Convergence (if >= 2 topics provided)
         if len(resolved_topics) >= 2:
@@ -1358,10 +1924,9 @@ class TopicCrossBreeder:
         count: int = 10,
         has_multiple_inputs: bool = False
     ) -> List[GeneratedTopic]:
-        """Greedily maximize domain diversity, affinity score, and operator balance."""
+        """Greedily maximize domain diversity, affinity score, and horizon tier quotas."""
         selected: List[GeneratedTopic] = []
         used_domains: Set[str] = set()
-        used_operators: Dict[str, int] = {}
 
         # Sort candidates by composite of domain affinity and Goldilocks vector sweet spot
         shuffled = list(candidates)
@@ -1374,35 +1939,55 @@ class TopicCrossBreeder:
 
         shuffled.sort(key=rank_score, reverse=True)
 
+        if self.mode == DiscoveryMode.ADJACENT:
+            quotas = {DiscoveryTier.ADJACENT: 8, DiscoveryTier.TRANSLATIONAL: 1, DiscoveryTier.FRONTIER: 1}
+        elif self.mode == DiscoveryMode.TRANSLATIONAL:
+            quotas = {DiscoveryTier.ADJACENT: 3, DiscoveryTier.TRANSLATIONAL: 5, DiscoveryTier.FRONTIER: 2}
+        elif self.mode == DiscoveryMode.FRONTIER:
+            quotas = {DiscoveryTier.ADJACENT: 2, DiscoveryTier.TRANSLATIONAL: 2, DiscoveryTier.FRONTIER: 6}
+        else: # BALANCED
+            quotas = {DiscoveryTier.ADJACENT: 6, DiscoveryTier.TRANSLATIONAL: 2, DiscoveryTier.FRONTIER: 2}
+
+        tier_counts = {t: 0 for t in DiscoveryTier}
+
         # Priority 1: If multiple inputs, ensure at least 1-2 Dual-Topic Syntheses
         if has_multiple_inputs:
             dual_candidates = [c for c in shuffled if c.operator_name == "Dual-Topic Synthesis"]
             for c in dual_candidates:
                 if len([s for s in selected if s.operator_name == "Dual-Topic Synthesis"]) >= 2:
                     break
-                if c.domain.name not in used_domains:
+                if c.domain.name not in used_domains and tier_counts[c.domain.tier] < quotas[c.domain.tier]:
                     selected.append(c)
                     used_domains.add(c.domain.name)
-                    used_operators[c.operator_name] = used_operators.get(c.operator_name, 0) + 1
+                    tier_counts[c.domain.tier] += 1
 
-        # Priority 2: Distinct domains with highest affinity
+        # Priority 2: Distinct domains respecting tier quotas
         for c in shuffled:
             if len(selected) >= count:
                 break
-            if c.domain.name not in used_domains:
+            if c.domain.name not in used_domains and tier_counts[c.domain.tier] < quotas[c.domain.tier]:
                 selected.append(c)
                 used_domains.add(c.domain.name)
-                used_operators[c.operator_name] = used_operators.get(c.operator_name, 0) + 1
+                tier_counts[c.domain.tier] += 1
 
-        # Priority 3: Fill remainder with minimal operator clash
+        # Priority 3: Fill remainder if quotas couldn't be strictly met
         if len(selected) < count:
             remaining = [c for c in shuffled if c not in selected]
-            remaining.sort(key=lambda x: (used_operators.get(x.operator_name, 0), -x.affinity))
+            remaining.sort(key=lambda x: -x.affinity)
+            for c in remaining:
+                if len(selected) >= count:
+                    break
+                if c.domain.name not in used_domains:
+                    selected.append(c)
+                    used_domains.add(c.domain.name)
+
+        # Priority 4: Fill remainder with duplicates if desperately needed
+        if len(selected) < count:
+            remaining = [c for c in shuffled if c not in selected]
             for c in remaining:
                 if len(selected) >= count:
                     break
                 selected.append(c)
-                used_operators[c.operator_name] = used_operators.get(c.operator_name, 0) + 1
 
         return selected[:count]
 
@@ -3012,6 +3597,13 @@ Examples:
         default=None,
         help="Random seed for reproducible cross-breeding generations."
     )
+    parser.add_argument(
+        "--mode",
+        type=str,
+        choices=["balanced", "adjacent", "translational", "frontier"],
+        default="balanced",
+        help="Discovery mode: balanced (default), adjacent, translational, or frontier."
+    )
 
     args = parser.parse_args()
 
@@ -3080,7 +3672,7 @@ Examples:
                 print(f"  • {color(bt, Style.CYAN)} [{color(f'Faculty: {cat_name}', Style.MAGENTA)}]")
 
     # Algorithmic Cross-Breeding with Domain Affinity
-    breeder = TopicCrossBreeder(seed=args.seed)
+    breeder = TopicCrossBreeder(seed=args.seed, mode=args.mode)
     generated = breeder.cross_breed(input_en_topics, count=10)
 
     for g in generated:
