@@ -19,6 +19,10 @@ import sys
 import threading
 import urllib.parse
 import urllib.request
+
+import asyncio
+import aiohttp
+import math
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from enum import Enum
@@ -320,1116 +324,64 @@ def format_topic_for_title(topic: str) -> str:
 # =====================================================================
 # Interdisciplinary Knowledge Base & Ontology
 # =====================================================================
-@dataclass(frozen=True)
-class InterdisciplinaryDomain:
-    name: str
-    category_label: str
-    primary_category: ScienceCategory
-    tier: DiscoveryTier
-    affinities: Dict[ScienceCategory, float]
-    methods: Tuple[str, ...]
-    phenomena: Tuple[str, ...]
-    concepts: Tuple[str, ...]
-    properties: Tuple[str, ...]
-    keywords: Tuple[str, ...]
 
+# =====================================================================
+# Dynamic Concept Miner (OpenAlex Async Pipeline)
+# =====================================================================
+class DynamicConceptMiner:
+    @classmethod
+    async def fetch_seed_concepts(cls, seed_topic: str) -> Dict[str, dict]:
+        """
+        Query OpenAlex API for top highly cited & recent works matching seed_topic.
+        Extract concepts (levels 2,3,4) and compute frequencies.
+        """
+        url = "https://api.openalex.org/works"
+        
+        # We query for works matching the seed topic in title/abstract
+        params_cited = {
+            "search": seed_topic,
+            "sort": "cited_by_count:desc",
+            "per-page": 100,
+            "mailto": "test@example.com"
+        }
+        params_recent = {
+            "search": seed_topic,
+            "sort": "publication_date:desc",
+            "per-page": 100,
+            "mailto": "test@example.com"
+        }
+        
+        async def fetch_json(u, s, p):
+            async with s.get(u, params=p) as resp:
+                if resp.status == 200:
+                    return await resp.json()
+                return {}
 
-
-DOMAINS: Tuple[InterdisciplinaryDomain, ...] = (
-    # =========================================================================
-    # ADJACENT Sub-Discipline Domains (60% of balanced output)
-    # High-yield, actionable, realistic intra-domain crossovers
-    # =========================================================================
-    InterdisciplinaryDomain(
-        name="Epigenetics & Chromatin Dynamics",
-        category_label="Molecular & Cell Biology",
-        primary_category=ScienceCategory.BIOLOGY,
-        tier=DiscoveryTier.ADJACENT,
-        affinities={
-            ScienceCategory.BIOLOGY: 1.0,
-            ScienceCategory.PHYSICS: 0.4,
-            ScienceCategory.MATERIALS: 0.3,
-            ScienceCategory.MATHEMATICS: 0.4,
-            ScienceCategory.COMPUTER_SCIENCE: 0.5,
-            ScienceCategory.SOCIAL_COGNITIVE: 0.1,
-            ScienceCategory.GENERAL_SCIENCE: 0.8,
-        },
-        methods=(
-            "ChIP-seq Chromatin Profiling",
-            "Bisulfite Sequencing",
-            "ATAC-seq Accessibility Mapping",
-            "CRISPRi/a Epigenome Editing",
-        ),
-        phenomena=(
-            "Histone Methylation Crosstalk",
-            "DNA Methylation Reprogramming",
-            "Chromatin Remodeling Cascades",
-            "Enhancer-Promoter Looping",
-        ),
-        concepts=(
-            "Epigenetic Memory and Inheritance",
-            "Bivalent Chromatin States",
-            "Pioneer Transcription Factor Access",
-            "Polycomb/Trithorax Regulation",
-        ),
-        properties=(
-            "Transcriptional Plasticity",
-            "Epigenetic Stability",
-            "Chromatin Accessibility",
-            "Lineage Commitment Fidelity",
-        ),
-        keywords=("epigenetics", "chromatin remodeling", "histone modification"),
-    ),
-    InterdisciplinaryDomain(
-        name="Immunology & Immunometabolism",
-        category_label="Immunology & Infectious Disease",
-        primary_category=ScienceCategory.BIOLOGY,
-        tier=DiscoveryTier.ADJACENT,
-        affinities={
-            ScienceCategory.BIOLOGY: 1.0,
-            ScienceCategory.PHYSICS: 0.3,
-            ScienceCategory.MATERIALS: 0.4,
-            ScienceCategory.MATHEMATICS: 0.4,
-            ScienceCategory.COMPUTER_SCIENCE: 0.5,
-            ScienceCategory.SOCIAL_COGNITIVE: 0.2,
-            ScienceCategory.GENERAL_SCIENCE: 0.8,
-        },
-        methods=(
-            "Flow Cytometry and CyTOF Profiling",
-            "Single-Cell Immune Repertoire Sequencing",
-            "Adoptive T Cell Transfer Assays",
-            "Metabolic Flux Analysis in Immune Cells",
-        ),
-        phenomena=(
-            "Immune Evasion and Checkpoint Escape",
-            "T Cell Exhaustion and Dysfunction",
-            "Metabolic Reprogramming in Macrophages",
-            "Autoimmune Tolerance Breakdown",
-        ),
-        concepts=(
-            "Immunometabolic Crosstalk",
-            "Checkpoint Inhibitor Resistance",
-            "Regulatory T Cell Homeostasis",
-            "Trained Innate Immunity",
-        ),
-        properties=(
-            "Immune Surveillance Efficacy",
-            "Antigen Presentation Fidelity",
-            "Cytokine Signaling Specificity",
-            "Immunological Memory Durability",
-        ),
-        keywords=("immunology", "immune evasion", "immunometabolism"),
-    ),
-    InterdisciplinaryDomain(
-        name="Stem Cell Biology & Cellular Plasticity",
-        category_label="Regenerative & Developmental Biology",
-        primary_category=ScienceCategory.BIOLOGY,
-        tier=DiscoveryTier.ADJACENT,
-        affinities={
-            ScienceCategory.BIOLOGY: 1.0,
-            ScienceCategory.PHYSICS: 0.3,
-            ScienceCategory.MATERIALS: 0.6,
-            ScienceCategory.MATHEMATICS: 0.4,
-            ScienceCategory.COMPUTER_SCIENCE: 0.5,
-            ScienceCategory.SOCIAL_COGNITIVE: 0.1,
-            ScienceCategory.GENERAL_SCIENCE: 0.8,
-        },
-        methods=(
-            "Lineage Tracing with Genetic Reporters",
-            "Induced Pluripotent Stem Cell (iPSC) Reprogramming",
-            "Clonal Analysis and Fate Mapping",
-            "Direct Transdifferentiation Protocols",
-        ),
-        phenomena=(
-            "Cellular Dedifferentiation",
-            "Lineage Reprogramming Barriers",
-            "Stem Cell Niche Signaling",
-            "Asymmetric Cell Division",
-        ),
-        concepts=(
-            "Waddington Landscape and Cell Fate",
-            "Transcription Factor Cocktails for Reprogramming",
-            "Stem Cell Exhaustion and Aging",
-            "Regenerative Capacity and Tissue Homeostasis",
-        ),
-        properties=(
-            "Pluripotency Maintenance",
-            "Differentiation Efficiency",
-            "Reprogramming Fidelity",
-            "Self-Renewal Capacity",
-        ),
-        keywords=("stem cells", "cellular reprogramming", "lineage plasticity"),
-    ),
-    InterdisciplinaryDomain(
-        name="Single-Cell & Spatial Omics",
-        category_label="Genomics & Systems Biology",
-        primary_category=ScienceCategory.BIOLOGY,
-        tier=DiscoveryTier.ADJACENT,
-        affinities={
-            ScienceCategory.BIOLOGY: 1.0,
-            ScienceCategory.PHYSICS: 0.3,
-            ScienceCategory.MATERIALS: 0.3,
-            ScienceCategory.MATHEMATICS: 0.6,
-            ScienceCategory.COMPUTER_SCIENCE: 0.8,
-            ScienceCategory.SOCIAL_COGNITIVE: 0.2,
-            ScienceCategory.GENERAL_SCIENCE: 0.8,
-        },
-        methods=(
-            "Single-Cell RNA Sequencing (scRNA-seq)",
-            "Spatial Transcriptomics (Visium, MERFISH)",
-            "Multi-Omic Single-Cell Profiling",
-            "Trajectory Inference and Pseudotime Analysis",
-        ),
-        phenomena=(
-            "Cellular Heterogeneity Within Tissues",
-            "Rare Cell Type Discovery",
-            "Spatial Gene Expression Gradients",
-            "Clonal Dynamics in Tumors",
-        ),
-        concepts=(
-            "Cell Atlas Construction",
-            "Lineage Hierarchy Reconstruction",
-            "Spatial Niche Microenvironments",
-            "Multi-Modal Data Integration",
-        ),
-        properties=(
-            "Transcriptomic Resolution",
-            "Spatial Mapping Precision",
-            "Cell-Type Deconvolution Accuracy",
-            "Temporal Ordering Fidelity",
-        ),
-        keywords=("single-cell RNA-seq", "spatial transcriptomics", "cellular heterogeneity"),
-    ),
-    InterdisciplinaryDomain(
-        name="Cellular Bioenergetics & Metabolic Signaling",
-        category_label="Metabolism & Cell Biology",
-        primary_category=ScienceCategory.BIOLOGY,
-        tier=DiscoveryTier.ADJACENT,
-        affinities={
-            ScienceCategory.BIOLOGY: 1.0,
-            ScienceCategory.PHYSICS: 0.5,
-            ScienceCategory.MATERIALS: 0.3,
-            ScienceCategory.MATHEMATICS: 0.5,
-            ScienceCategory.COMPUTER_SCIENCE: 0.4,
-            ScienceCategory.SOCIAL_COGNITIVE: 0.1,
-            ScienceCategory.GENERAL_SCIENCE: 0.8,
-        },
-        methods=(
-            "Seahorse Metabolic Flux Analysis",
-            "Isotope Tracing and Metabolomics",
-            "Mitochondrial Membrane Potential Imaging",
-            "mTOR/AMPK Pathway Profiling",
-        ),
-        phenomena=(
-            "Warburg Effect and Aerobic Glycolysis",
-            "Mitochondrial Dysfunction and ROS Accumulation",
-            "Nutrient Sensing and Autophagy",
-            "ER Stress and Unfolded Protein Response",
-        ),
-        concepts=(
-            "Metabolic Reprogramming in Disease",
-            "Mitochondria-ER Contact Sites",
-            "NAD+ Metabolism and Sirtuins",
-            "Lipid Droplet Biogenesis and Signaling",
-        ),
-        properties=(
-            "Bioenergetic Efficiency",
-            "Metabolic Flexibility",
-            "Oxidative Stress Resilience",
-            "Nutrient Sensing Sensitivity",
-        ),
-        keywords=("mitochondria", "metabolic signaling", "cellular bioenergetics"),
-    ),
-    InterdisciplinaryDomain(
-        name="Neuroscience & Neural Circuit Dynamics",
-        category_label="Neurobiology & Cognitive Science",
-        primary_category=ScienceCategory.BIOLOGY,
-        tier=DiscoveryTier.ADJACENT,
-        affinities={
-            ScienceCategory.BIOLOGY: 1.0,
-            ScienceCategory.PHYSICS: 0.5,
-            ScienceCategory.MATERIALS: 0.3,
-            ScienceCategory.MATHEMATICS: 0.6,
-            ScienceCategory.COMPUTER_SCIENCE: 0.7,
-            ScienceCategory.SOCIAL_COGNITIVE: 0.8,
-            ScienceCategory.GENERAL_SCIENCE: 0.8,
-        },
-        methods=(
-            "Optogenetic Circuit Manipulation",
-            "Calcium Imaging and Fiber Photometry",
-            "Connectomics and Electron Microscopy",
-            "Patch-Clamp Electrophysiology",
-        ),
-        phenomena=(
-            "Synaptic Plasticity and LTP/LTD",
-            "Neural Oscillation Synchronization",
-            "Neurodegeneration and Protein Aggregation",
-            "Cortical Remapping After Injury",
-        ),
-        concepts=(
-            "Engram Formation and Memory Encoding",
-            "Glial-Neuronal Metabolic Coupling",
-            "Blood-Brain Barrier Permeability",
-            "Neuroimmune Interactions",
-        ),
-        properties=(
-            "Synaptic Transmission Fidelity",
-            "Circuit-Level Computation",
-            "Neuroplasticity",
-            "Neuroprotective Resilience",
-        ),
-        keywords=("neural circuits", "synaptic plasticity", "neuroscience"),
-    ),
-    InterdisciplinaryDomain(
-        name="Computational Chemistry & Drug Discovery",
-        category_label="Chemistry & Pharmacology",
-        primary_category=ScienceCategory.MATERIALS,
-        tier=DiscoveryTier.ADJACENT,
-        affinities={
-            ScienceCategory.BIOLOGY: 0.85,
-            ScienceCategory.PHYSICS: 0.6,
-            ScienceCategory.MATERIALS: 1.0,
-            ScienceCategory.MATHEMATICS: 0.6,
-            ScienceCategory.COMPUTER_SCIENCE: 0.8,
-            ScienceCategory.SOCIAL_COGNITIVE: 0.2,
-            ScienceCategory.GENERAL_SCIENCE: 0.8,
-        },
-        methods=(
-            "Molecular Docking and Virtual Screening",
-            "Molecular Dynamics Simulations",
-            "QSAR Modeling and Machine Learning",
-            "Fragment-Based Drug Design",
-        ),
-        phenomena=(
-            "Allosteric Binding Site Modulation",
-            "Drug Resistance Mutations",
-            "Prodrug Activation Cascades",
-            "Polypharmacology and Off-Target Effects",
-        ),
-        concepts=(
-            "Structure-Activity Relationships (SAR)",
-            "Pharmacophore Mapping",
-            "ADMET Property Prediction",
-            "Target Engagement and Selectivity",
-        ),
-        properties=(
-            "Binding Affinity and Selectivity",
-            "Bioavailability",
-            "Metabolic Stability",
-            "Therapeutic Window",
-        ),
-        keywords=("drug discovery", "molecular docking", "computational chemistry"),
-    ),
-    InterdisciplinaryDomain(
-        name="Electrochemistry & Energy Storage",
-        category_label="Chemistry & Materials Science",
-        primary_category=ScienceCategory.MATERIALS,
-        tier=DiscoveryTier.ADJACENT,
-        affinities={
-            ScienceCategory.BIOLOGY: 0.3,
-            ScienceCategory.PHYSICS: 0.85,
-            ScienceCategory.MATERIALS: 1.0,
-            ScienceCategory.MATHEMATICS: 0.5,
-            ScienceCategory.COMPUTER_SCIENCE: 0.4,
-            ScienceCategory.SOCIAL_COGNITIVE: 0.2,
-            ScienceCategory.GENERAL_SCIENCE: 0.8,
-        },
-        methods=(
-            "Cyclic Voltammetry and Impedance Spectroscopy",
-            "In Situ X-ray Diffraction Under Cycling",
-            "Electrocatalytic Activity Screening",
-            "Solid-State Electrolyte Characterization",
-        ),
-        phenomena=(
-            "Lithium Dendrite Formation",
-            "Solid Electrolyte Interphase Growth",
-            "Oxygen Evolution Reaction Catalysis",
-            "Ion Intercalation Dynamics",
-        ),
-        concepts=(
-            "Beyond-Lithium Battery Chemistries",
-            "Electrocatalyst Design Principles",
-            "Interfacial Charge Transfer",
-            "Redox Flow Battery Architectures",
-        ),
-        properties=(
-            "Energy Density and Cycle Life",
-            "Coulombic Efficiency",
-            "Rate Capability",
-            "Electrochemical Stability Window",
-        ),
-        keywords=("electrochemistry", "energy storage", "electrocatalysis"),
-    ),
-    InterdisciplinaryDomain(
-        name="Condensed Matter & Quantum Materials",
-        category_label="Physics & Materials Science",
-        primary_category=ScienceCategory.PHYSICS,
-        tier=DiscoveryTier.ADJACENT,
-        affinities={
-            ScienceCategory.BIOLOGY: 0.2,
-            ScienceCategory.PHYSICS: 1.0,
-            ScienceCategory.MATERIALS: 1.0,
-            ScienceCategory.MATHEMATICS: 0.8,
-            ScienceCategory.COMPUTER_SCIENCE: 0.6,
-            ScienceCategory.SOCIAL_COGNITIVE: 0.1,
-            ScienceCategory.GENERAL_SCIENCE: 0.7,
-        },
-        methods=(
-            "Angle-Resolved Photoemission Spectroscopy (ARPES)",
-            "Neutron Scattering and Inelastic Diffraction",
-            "Muon Spin Rotation/Relaxation",
-            "Scanning Tunneling Microscopy at mK",
-        ),
-        phenomena=(
-            "Topological Insulator Surface States",
-            "Strongly Correlated Electron Behavior",
-            "Unconventional Superconductivity",
-            "Quantum Spin Liquid Formation",
-        ),
-        concepts=(
-            "Band Topology and Berry Phase",
-            "Mott Insulator Transitions",
-            "Twisted Bilayer Graphene Flat Bands",
-            "Majorana Fermion Braiding",
-        ),
-        properties=(
-            "Topological Protection",
-            "Correlation Strength",
-            "Superconducting Critical Temperature",
-            "Quantum Coherence Length",
-        ),
-        keywords=("condensed matter", "topological insulators", "quantum materials"),
-    ),
-    InterdisciplinaryDomain(
-        name="Computational Genomics & Bioinformatics",
-        category_label="Bioinformatics & Data Science",
-        primary_category=ScienceCategory.COMPUTER_SCIENCE,
-        tier=DiscoveryTier.ADJACENT,
-        affinities={
-            ScienceCategory.BIOLOGY: 1.0,
-            ScienceCategory.PHYSICS: 0.3,
-            ScienceCategory.MATERIALS: 0.2,
-            ScienceCategory.MATHEMATICS: 0.7,
-            ScienceCategory.COMPUTER_SCIENCE: 1.0,
-            ScienceCategory.SOCIAL_COGNITIVE: 0.2,
-            ScienceCategory.GENERAL_SCIENCE: 0.8,
-        },
-        methods=(
-            "Genome-Wide Association Studies (GWAS)",
-            "De Novo Genome Assembly Algorithms",
-            "Variant Calling and Annotation Pipelines",
-            "Phylogenomic Tree Reconstruction",
-        ),
-        phenomena=(
-            "Structural Variant Discovery",
-            "Alternative Splicing Complexity",
-            "Horizontal Gene Transfer Events",
-            "Regulatory Element Evolution",
-        ),
-        concepts=(
-            "Pan-Genome and Core Genome Analysis",
-            "Long-Read Sequencing Error Correction",
-            "Functional Annotation Databases",
-            "Polygenic Risk Score Modeling",
-        ),
-        properties=(
-            "Assembly Contiguity",
-            "Variant Detection Sensitivity",
-            "Annotation Completeness",
-            "Phylogenetic Resolution",
-        ),
-        keywords=("bioinformatics", "computational genomics", "genome assembly"),
-    ),
-    # =========================================================================
-    # TRANSLATIONAL / Applied Bioengineering Domains (25% of balanced output)
-    # =========================================================================
-    InterdisciplinaryDomain(
-        name="Biomaterials & Tissue Engineering",
-        category_label="Bioengineering & Regenerative Medicine",
-        primary_category=ScienceCategory.MATERIALS,
-        tier=DiscoveryTier.TRANSLATIONAL,
-        affinities={
-            ScienceCategory.BIOLOGY: 1.0,
-            ScienceCategory.PHYSICS: 0.5,
-            ScienceCategory.MATERIALS: 1.0,
-            ScienceCategory.MATHEMATICS: 0.4,
-            ScienceCategory.COMPUTER_SCIENCE: 0.4,
-            ScienceCategory.SOCIAL_COGNITIVE: 0.2,
-            ScienceCategory.GENERAL_SCIENCE: 0.8,
-        },
-        methods=(
-            "3D Bioprinting and Scaffold Fabrication",
-            "Organoid Culture and Maturation",
-            "Microencapsulation and Hydrogel Design",
-            "Decellularized Matrix Engineering",
-        ),
-        phenomena=(
-            "Cell-Biomaterial Interface Remodeling",
-            "Vascularization in Engineered Tissues",
-            "Immune Response to Implanted Materials",
-            "Mechanically-Guided Tissue Morphogenesis",
-        ),
-        concepts=(
-            "Smart Hydrogel Responsive Systems",
-            "Organoid-Based Disease Modeling",
-            "Bioresorbable Scaffold Architecture",
-            "Cell-Laden Bioink Formulations",
-        ),
-        properties=(
-            "Biocompatibility",
-            "Mechanical Compliance Matching",
-            "Degradation Kinetics",
-            "Cell Viability and Engraftment",
-        ),
-        keywords=("organoids", "tissue engineering", "biomaterials"),
-    ),
-    InterdisciplinaryDomain(
-        name="High-Throughput Screening & Lab Automation",
-        category_label="Biotechnology & Assay Development",
-        primary_category=ScienceCategory.BIOLOGY,
-        tier=DiscoveryTier.TRANSLATIONAL,
-        affinities={
-            ScienceCategory.BIOLOGY: 1.0,
-            ScienceCategory.PHYSICS: 0.3,
-            ScienceCategory.MATERIALS: 0.5,
-            ScienceCategory.MATHEMATICS: 0.5,
-            ScienceCategory.COMPUTER_SCIENCE: 0.8,
-            ScienceCategory.SOCIAL_COGNITIVE: 0.2,
-            ScienceCategory.GENERAL_SCIENCE: 0.8,
-        },
-        methods=(
-            "Automated Liquid Handling Platforms",
-            "Combinatorial Library Screening",
-            "CRISPR Knockout Screening (Genome-Wide)",
-            "Phenotypic High-Content Imaging",
-        ),
-        phenomena=(
-            "Hit-to-Lead Compound Attrition",
-            "Assay Interference and False Positives",
-            "Dose-Response Curve Variability",
-            "Synthetic Lethality Interactions",
-        ),
-        concepts=(
-            "Massively Parallel Reporter Assays",
-            "AI-Driven Compound Prioritization",
-            "Miniaturized Assay Formats",
-            "Chemical Genetic Interaction Maps",
-        ),
-        properties=(
-            "Screening Throughput",
-            "Hit Rate and Selectivity",
-            "Assay Robustness (Z-Factor)",
-            "Reproducibility Across Replicates",
-        ),
-        keywords=("high-throughput screening", "CRISPR screening", "lab automation"),
-    ),
-    InterdisciplinaryDomain(
-        name="CRISPR Therapeutics & Gene Therapy",
-        category_label="Genetic Medicine & Biotechnology",
-        primary_category=ScienceCategory.BIOLOGY,
-        tier=DiscoveryTier.TRANSLATIONAL,
-        affinities={
-            ScienceCategory.BIOLOGY: 1.0,
-            ScienceCategory.PHYSICS: 0.2,
-            ScienceCategory.MATERIALS: 0.5,
-            ScienceCategory.MATHEMATICS: 0.3,
-            ScienceCategory.COMPUTER_SCIENCE: 0.5,
-            ScienceCategory.SOCIAL_COGNITIVE: 0.3,
-            ScienceCategory.GENERAL_SCIENCE: 0.8,
-        },
-        methods=(
-            "Base Editing and Prime Editing",
-            "AAV and Lipid Nanoparticle Delivery Systems",
-            "In Vivo Gene Editing in Animal Models",
-            "Guide RNA Design and Off-Target Profiling",
-        ),
-        phenomena=(
-            "Off-Target Mutagenesis and Genotoxicity",
-            "Immune Responses to Editing Machinery",
-            "Mosaicism in Edited Organisms",
-            "Epigenetic Silencing of Transgenes",
-        ),
-        concepts=(
-            "Therapeutic Gene Correction Strategies",
-            "Ex Vivo vs In Vivo Editing Paradigms",
-            "Tissue-Specific Promoter Engineering",
-            "Multiplexed Gene Regulation Circuits",
-        ),
-        properties=(
-            "Editing Efficiency and Specificity",
-            "Delivery Tropism",
-            "Transgene Expression Durability",
-            "Safety and Immunogenicity Profile",
-        ),
-        keywords=("CRISPR therapeutics", "gene therapy", "base editing"),
-    ),
-    InterdisciplinaryDomain(
-        name="Clinical Biomarkers & Precision Diagnostics",
-        category_label="Translational Medicine & Diagnostics",
-        primary_category=ScienceCategory.BIOLOGY,
-        tier=DiscoveryTier.TRANSLATIONAL,
-        affinities={
-            ScienceCategory.BIOLOGY: 1.0,
-            ScienceCategory.PHYSICS: 0.3,
-            ScienceCategory.MATERIALS: 0.5,
-            ScienceCategory.MATHEMATICS: 0.6,
-            ScienceCategory.COMPUTER_SCIENCE: 0.7,
-            ScienceCategory.SOCIAL_COGNITIVE: 0.4,
-            ScienceCategory.GENERAL_SCIENCE: 0.8,
-        },
-        methods=(
-            "Liquid Biopsy and ctDNA Profiling",
-            "Multiplex Immunoassay Panels",
-            "Mass Spectrometry-Based Proteomics",
-            "Digital PCR Quantification",
-        ),
-        phenomena=(
-            "Biomarker Heterogeneity Across Patients",
-            "Circulating Tumor Cell Shedding",
-            "Early Detection Signal Dilution",
-            "Companion Diagnostic Co-Development",
-        ),
-        concepts=(
-            "Multi-Analyte Diagnostic Panels",
-            "Minimal Residual Disease Monitoring",
-            "Predictive vs Prognostic Biomarker Validation",
-            "Point-of-Care Diagnostic Platforms",
-        ),
-        properties=(
-            "Diagnostic Sensitivity and Specificity",
-            "Predictive Value",
-            "Analytical Reproducibility",
-            "Clinical Actionability",
-        ),
-        keywords=("biomarkers", "precision diagnostics", "liquid biopsy"),
-    ),
-    InterdisciplinaryDomain(
-        name="Microfluidics & Organ-on-Chip",
-        category_label="Bioengineering & Microphysiology",
-        primary_category=ScienceCategory.MATERIALS,
-        tier=DiscoveryTier.TRANSLATIONAL,
-        affinities={
-            ScienceCategory.BIOLOGY: 1.0,
-            ScienceCategory.PHYSICS: 0.6,
-            ScienceCategory.MATERIALS: 1.0,
-            ScienceCategory.MATHEMATICS: 0.5,
-            ScienceCategory.COMPUTER_SCIENCE: 0.5,
-            ScienceCategory.SOCIAL_COGNITIVE: 0.2,
-            ScienceCategory.GENERAL_SCIENCE: 0.8,
-        },
-        methods=(
-            "PDMS Soft Lithography Fabrication",
-            "Droplet Microfluidic Encapsulation",
-            "Multi-Organ Chip Integration",
-            "Real-Time Biosensor Coupling",
-        ),
-        phenomena=(
-            "Laminar Flow Patterning",
-            "Shear Stress-Induced Cell Responses",
-            "Gradient Generation in Microchannels",
-            "Compartmentalized Co-Culture Dynamics",
-        ),
-        concepts=(
-            "Organ-on-Chip Disease Models",
-            "Lab-on-Chip Diagnostic Devices",
-            "Microphysiological System Validation",
-            "Patient-Derived Chip Platforms",
-        ),
-        properties=(
-            "Physiological Relevance",
-            "Throughput and Parallelization",
-            "Fluid Control Precision",
-            "In Vivo Predictive Correlation",
-        ),
-        keywords=("organ-on-chip", "microfluidics", "lab-on-chip"),
-    ),
-    # =========================================================================
-    # FRONTIER Domains (15% of balanced output)
-    # Deep fundamental physics/math/CS leaps — original ontology
-    # =========================================================================
-    InterdisciplinaryDomain(
-        name="Biophysics & Mechanobiology",
-        category_label="Physics & Biological Physics",
-        primary_category=ScienceCategory.PHYSICS,
-        tier=DiscoveryTier.FRONTIER,
-        affinities={
-            ScienceCategory.BIOLOGY: 1.0,
-            ScienceCategory.MATERIALS: 0.9,
-            ScienceCategory.PHYSICS: 0.85,
-            ScienceCategory.MATHEMATICS: 0.7,
-            ScienceCategory.COMPUTER_SCIENCE: 0.4,
-            ScienceCategory.SOCIAL_COGNITIVE: 0.1,
-            ScienceCategory.GENERAL_SCIENCE: 0.8,
-        },
-        methods=(
-            "Traction Force Microscopy",
-            "Atomic Force Spectroscopy",
-            "Viscoelastic Rheology Profiling",
-            "Optical Tweezers Manipulation",
-        ),
-        phenomena=(
-            "Mechanotransductive Gating",
-            "Cytoskeletal Tension Remodeling",
-            "Strain-Induced Fluidization",
-            "Membrane Curvature Sorting",
-        ),
-        concepts=(
-            "Mechanosensitive Ion Channels",
-            "Cellular Viscoelasticity",
-            "Extracellular Matrix Stiffness Coupling",
-            "Force-Dependent Molecular Conformations",
-        ),
-        properties=(
-            "Mechanosensory Sensitivity",
-            "Structural Elasticity",
-            "Tensional Homeostasis",
-            "Deformation Resilience",
-        ),
-        keywords=("mechanobiology", "cellular biophysics", "mechanotransduction"),
-    ),
-    InterdisciplinaryDomain(
-        name="Systems Biology & Gene Regulatory Networks",
-        category_label="Computational & Quantitative Biology",
-        primary_category=ScienceCategory.BIOLOGY,
-        tier=DiscoveryTier.FRONTIER,
-        affinities={
-            ScienceCategory.BIOLOGY: 1.0,
-            ScienceCategory.MATHEMATICS: 0.9,
-            ScienceCategory.COMPUTER_SCIENCE: 0.85,
-            ScienceCategory.PHYSICS: 0.75,
-            ScienceCategory.MATERIALS: 0.3,
-            ScienceCategory.SOCIAL_COGNITIVE: 0.3,
-            ScienceCategory.GENERAL_SCIENCE: 0.8,
-        },
-        methods=(
-            "Bifurcation and Phase Plane Analysis",
-            "Sensitivity and Metabolic Flux Analysis",
-            "Dynamic Network Motif Profiling",
-            "Chemical Master Equation Formulations",
-        ),
-        phenomena=(
-            "Bistable State Switching",
-            "Limit Cycle Oscillations",
-            "Noise-Induced State Transitions",
-            "Transcriptional Hysteresis",
-        ),
-        concepts=(
-            "Feedback Control Motifs",
-            "Quorum-Driven Attractors",
-            "Epigenetic Waddington Landscapes",
-            "Oscillatory Gene Circuits",
-        ),
-        properties=(
-            "Attractor Stability",
-            "Regulatory Switchability",
-            "Noise Buffering",
-            "Dynamical Homeostasis",
-        ),
-        keywords=("systems biology", "gene regulatory networks", "dynamical systems biology"),
-    ),
-    InterdisciplinaryDomain(
-        name="Stochastic Thermodynamics of Living Systems",
-        category_label="Non-Equilibrium Physics & Biophysics",
-        primary_category=ScienceCategory.PHYSICS,
-        tier=DiscoveryTier.FRONTIER,
-        affinities={
-            ScienceCategory.BIOLOGY: 1.0,
-            ScienceCategory.PHYSICS: 1.0,
-            ScienceCategory.MATHEMATICS: 0.85,
-            ScienceCategory.MATERIALS: 0.6,
-            ScienceCategory.COMPUTER_SCIENCE: 0.5,
-            ScienceCategory.SOCIAL_COGNITIVE: 0.2,
-            ScienceCategory.GENERAL_SCIENCE: 0.8,
-        },
-        methods=(
-            "Thermodynamic Uncertainty Relations (TUR)",
-            "Fluctuation Theorem Decompositions",
-            "Entropy Production Rate Quantification",
-            "Stochastic Energetics Formulations",
-        ),
-        phenomena=(
-            "Non-Equilibrium Steady State Dissipation",
-            "Energy-Accuracy Trade-Offs",
-            "Free-Energy Driven Kinetic Proofreading",
-            "Microscopic Reversibility Breaking",
-        ),
-        concepts=(
-            "Thermodynamic Cost of Signalling",
-            "Dissipative Proofreading Cascades",
-            "Nonequilibrium Fluctuation Landscapes",
-            "Thermodynamic Length and Free Energy Bounds",
-        ),
-        properties=(
-            "Thermodynamic Efficiency",
-            "Kinetic Proofreading Fidelity",
-            "Entropy Dissipation Minimization",
-            "Fluctuation Robustness",
-        ),
-        keywords=("stochastic thermodynamics", "nonequilibrium energetics", "thermodynamic uncertainty relation"),
-    ),
-    InterdisciplinaryDomain(
-        name="Active Matter & Collective Dynamics",
-        category_label="Soft Matter Physics & Fluid Mechanics",
-        primary_category=ScienceCategory.PHYSICS,
-        tier=DiscoveryTier.FRONTIER,
-        affinities={
-            ScienceCategory.BIOLOGY: 0.95,
-            ScienceCategory.PHYSICS: 1.0,
-            ScienceCategory.MATERIALS: 0.95,
-            ScienceCategory.MATHEMATICS: 0.75,
-            ScienceCategory.COMPUTER_SCIENCE: 0.4,
-            ScienceCategory.SOCIAL_COGNITIVE: 0.2,
-            ScienceCategory.GENERAL_SCIENCE: 0.8,
-        },
-        methods=(
-            "Microfluidic Droplet Confinement",
-            "Continuum Active Gel Hydrodynamics",
-            "Particle Image Velocimetry",
-            "Agent-Based Modeling of Self-Propulsion",
-        ),
-        phenomena=(
-            "Motility-Induced Phase Separation",
-            "Collective Bacterial Swarming",
-            "Active Cytoplasmic Streaming",
-            "Topological Defect Motion",
-        ),
-        concepts=(
-            "Self-Propelled Colloidal Engines",
-            "Active Stress Tensors",
-            "Non-Equilibrium Pattern Formation",
-            "Active Nematics and Polar Order",
-        ),
-        properties=(
-            "Non-Equilibrium Self-Assembly",
-            "Coordinated Swarming",
-            "Active Transport Efficiency",
-            "Directed Flow Invariance",
-        ),
-        keywords=("active matter", "collective dynamics", "cytoplasmic streaming"),
-    ),
-    InterdisciplinaryDomain(
-        name="Information Theory in Biological Signalling",
-        category_label="Information Theory & Quantitative Biology",
-        primary_category=ScienceCategory.COMPUTER_SCIENCE,
-        tier=DiscoveryTier.FRONTIER,
-        affinities={
-            ScienceCategory.BIOLOGY: 1.0,
-            ScienceCategory.COMPUTER_SCIENCE: 0.9,
-            ScienceCategory.MATHEMATICS: 0.9,
-            ScienceCategory.PHYSICS: 0.8,
-            ScienceCategory.SOCIAL_COGNITIVE: 0.4,
-            ScienceCategory.MATERIALS: 0.2,
-            ScienceCategory.GENERAL_SCIENCE: 0.8,
-        },
-        methods=(
-            "Channel Capacity Quantification",
-            "Mutual Information Estimation in Single Cells",
-            "Rate-Distortion Analysis of Receptors",
-            "Transfer Entropy Mapping",
-        ),
-        phenomena=(
-            "Information Bottlenecks in Transduction",
-            "Noise Filtering via Multi-Step Relays",
-            "Stochastic Receptor Gating Limits",
-            "Signal Distortion Thresholds",
-        ),
-        concepts=(
-            "Input-Output Channel Capacity",
-            "Biochemical Signal-to-Noise Bounds",
-            "Redundant Sensory Encoding",
-            "Optimal Information Transmission",
-        ),
-        properties=(
-            "Signalling Fidelity",
-            "Information Conservation",
-            "Noise Suppression",
-            "Transduction Bandwidth",
-        ),
-        keywords=("information theory in biology", "biological signalling channel capacity", "information transduction"),
-    ),
-    InterdisciplinaryDomain(
-        name="Complex Network Science & Nonlinear Dynamics",
-        category_label="Mathematics & Complex Systems",
-        primary_category=ScienceCategory.MATHEMATICS,
-        tier=DiscoveryTier.FRONTIER,
-        affinities={
-            ScienceCategory.BIOLOGY: 0.95,
-            ScienceCategory.PHYSICS: 0.95,
-            ScienceCategory.COMPUTER_SCIENCE: 0.95,
-            ScienceCategory.MATHEMATICS: 1.0,
-            ScienceCategory.SOCIAL_COGNITIVE: 0.95,
-            ScienceCategory.MATERIALS: 0.6,
-            ScienceCategory.GENERAL_SCIENCE: 0.9,
-        },
-        methods=(
-            "Spectral Graph Decomposition",
-            "Percolation and Robustness Analysis",
-            "Nonlinear Time Series Embedding",
-            "Community Detection Algorithms",
-        ),
-        phenomena=(
-            "Critical Slowing Down at Tipping Points",
-            "Cascade Breakdown Dynamics",
-            "Phase Synchronization",
-            "Self-Organized Criticality",
-        ),
-        concepts=(
-            "Scale-Free Network Architecture",
-            "Dynamical Centrality Metrics",
-            "Resilience Landscapes",
-            "Coupled Nonlinear Oscillators",
-        ),
-        properties=(
-            "Percolation Resilience",
-            "Network Controllability",
-            "Synchronizability",
-            "Fault Tolerance",
-        ),
-        keywords=("complex networks", "critical transitions", "nonlinear dynamics"),
-    ),
-    InterdisciplinaryDomain(
-        name="Bio-Imaging & Inverse Problems",
-        category_label="Optics & Applied Physics",
-        primary_category=ScienceCategory.PHYSICS,
-        tier=DiscoveryTier.FRONTIER,
-        affinities={
-            ScienceCategory.BIOLOGY: 1.0,
-            ScienceCategory.PHYSICS: 0.95,
-            ScienceCategory.MATERIALS: 0.85,
-            ScienceCategory.COMPUTER_SCIENCE: 0.75,
-            ScienceCategory.MATHEMATICS: 0.75,
-            ScienceCategory.SOCIAL_COGNITIVE: 0.05,
-            ScienceCategory.GENERAL_SCIENCE: 0.8,
-        },
-        methods=(
-            "Super-Resolution Structured Illumination (SIM)",
-            "Phase Retrieval and Deconvolution",
-            "Cryo-Electron Tomography Reconstruction",
-            "Adaptive Optics Wavefront Correction",
-        ),
-        phenomena=(
-            "Sub-Diffraction Localization",
-            "Label-Free Phase Contrast Enhancement",
-            "Photodamage and Phototoxicity",
-            "Evanescent Wave Coupling",
-        ),
-        concepts=(
-            "Inverse Scattering Algorithms",
-            "Single-Molecule Localization Precision",
-            "Wavefront Engineering",
-            "Computational Microscopy",
-        ),
-        properties=(
-            "Spatial Resolution Fidelity",
-            "High-Contrast Resolvability",
-            "Non-Invasive Penetration",
-            "Dynamic Phase Sensitivity",
-        ),
-        keywords=("super-resolution imaging", "cryo-electron tomography", "computational microscopy"),
-    ),
-    InterdisciplinaryDomain(
-        name="Topological Data Analysis & Differential Geometry",
-        category_label="Mathematics & Theoretical Physics",
-        primary_category=ScienceCategory.MATHEMATICS,
-        tier=DiscoveryTier.FRONTIER,
-        affinities={
-            ScienceCategory.MATHEMATICS: 1.0,
-            ScienceCategory.PHYSICS: 0.95,
-            ScienceCategory.COMPUTER_SCIENCE: 0.95,
-            ScienceCategory.MATERIALS: 0.85,
-            ScienceCategory.BIOLOGY: 0.85,
-            ScienceCategory.SOCIAL_COGNITIVE: 0.5,
-            ScienceCategory.GENERAL_SCIENCE: 0.85,
-        },
-        methods=(
-            "Persistent Homology and Filtration",
-            "Manifold Learning and Geodesic Mapping",
-            "Euler Characteristic Transforms",
-            "Sheaf-Theoretic Data Integration",
-        ),
-        phenomena=(
-            "Geometric Phase Invariance",
-            "Topological Boundary Preservation",
-            "Betti Number Transitions",
-            "Curvature-Induced Trapping",
-        ),
-        concepts=(
-            "Invariant Topological Signatures",
-            "High-Dimensional Phenotypic Manifolds",
-            "Simplicial Complex Ensembles",
-            "Persistence Landscapes",
-        ),
-        properties=(
-            "Topological Invariance",
-            "Coordinate-Free Robustness",
-            "Manifold Fidelity",
-            "Geometric Continuity",
-        ),
-        keywords=("topological data analysis", "persistent homology", "manifold learning"),
-    ),
-    InterdisciplinaryDomain(
-        name="Synthetic Biology & Morphogenetic Engineering",
-        category_label="Bioengineering & Developmental Biology",
-        primary_category=ScienceCategory.BIOLOGY,
-        tier=DiscoveryTier.FRONTIER,
-        affinities={
-            ScienceCategory.BIOLOGY: 1.0,
-            ScienceCategory.MATERIALS: 0.85,
-            ScienceCategory.COMPUTER_SCIENCE: 0.75,
-            ScienceCategory.PHYSICS: 0.75,
-            ScienceCategory.MATHEMATICS: 0.6,
-            ScienceCategory.SOCIAL_COGNITIVE: 0.2,
-            ScienceCategory.GENERAL_SCIENCE: 0.8,
-        },
-        methods=(
-            "CRISPR-Guided Epigenetic Circuit Design",
-            "Bio-Orthogonal Metabolic Flux Redirection",
-            "Turing Pattern Reaction-Diffusion Modeling",
-            "Cell-Free Biochemical System Assembly",
-        ),
-        phenomena=(
-            "Membraneless Condensation and Phase Separation",
-            "Quorum Sensing Coherence",
-            "Morphogen Gradient Formation",
-            "Self-Assembling Morphogenesis",
-        ),
-        concepts=(
-            "Synthetic Gene Logic Gates",
-            "Epigenetic Memory Switches",
-            "Living Biomaterial Scaffolds",
-            "Cellular Allostasis Relays",
-        ),
-        properties=(
-            "Biocompatibility",
-            "Adaptive Homeostasis",
-            "Programmable Morphogenesis",
-            "Self-Healing Autonomy",
-        ),
-        keywords=("synthetic biology", "morphogenesis", "metabolic engineering"),
-    ),
-    InterdisciplinaryDomain(
-        name="Non-Equilibrium Thermodynamics & Statistical Physics",
-        category_label="Theoretical & Statistical Physics",
-        primary_category=ScienceCategory.PHYSICS,
-        tier=DiscoveryTier.FRONTIER,
-        affinities={
-            ScienceCategory.PHYSICS: 1.0,
-            ScienceCategory.MATERIALS: 0.95,
-            ScienceCategory.BIOLOGY: 0.85,
-            ScienceCategory.MATHEMATICS: 0.8,
-            ScienceCategory.COMPUTER_SCIENCE: 0.5,
-            ScienceCategory.SOCIAL_COGNITIVE: 0.3,
-            ScienceCategory.GENERAL_SCIENCE: 0.85,
-        },
-        methods=(
-            "Fluctuation-Dissipation Decomposition",
-            "Entropy Production Rate Minimization",
-            "Master Equation Formulations",
-            "Langevin Dynamics Modeling",
-        ),
-        phenomena=(
-            "Spontaneous Symmetry Breaking",
-            "Dissipative Self-Organization",
-            "Phase Separation Dynamics",
-            "Bifurcation Under Flow",
-        ),
-        concepts=(
-            "Non-Equilibrium Steady States",
-            "Free-Energy Landscapes",
-            "Thermodynamic Forces and Fluxes",
-            "Kinetic Arrest Transitions",
-        ),
-        properties=(
-            "Dissipative Efficiency",
-            "Kinetic Stability",
-            "Fluctuation Tolerance",
-            "Non-Equilibrium Homeostasis",
-        ),
-        keywords=("non-equilibrium thermodynamics", "dissipative structures", "fluctuation theorems"),
-    ),
-    InterdisciplinaryDomain(
-        name="Quantum Information & Metrology",
-        category_label="Quantum Physics & Information Science",
-        primary_category=ScienceCategory.PHYSICS,
-        tier=DiscoveryTier.FRONTIER,
-        affinities={
-            ScienceCategory.PHYSICS: 1.0,
-            ScienceCategory.COMPUTER_SCIENCE: 0.95,
-            ScienceCategory.MATERIALS: 0.9,
-            ScienceCategory.MATHEMATICS: 0.85,
-            ScienceCategory.BIOLOGY: 0.25,
-            ScienceCategory.SOCIAL_COGNITIVE: 0.05,
-            ScienceCategory.GENERAL_SCIENCE: 0.7,
-        },
-        methods=(
-            "Tensor Network Decompositions",
-            "Quantum-Enhanced Interferometric Sensing",
-            "Entanglement Witnessing and Tomography",
-            "Decoherence-Free Subspace Encoding",
-        ),
-        phenomena=(
-            "Quantum Coherence and Tunneling",
-            "Entanglement Swapping",
-            "Superradiance and Collective Emission",
-            "Non-Locality in Condensed Phases",
-        ),
-        concepts=(
-            "Quantum Sensing Protocols",
-            "Squeezed-State Precision",
-            "Entanglement Entropy Scaling",
-            "Coherent State Control",
-        ),
-        properties=(
-            "Sub-Shot-Noise Precision",
-            "Quantum Coherence Longevity",
-            "Sensing Sensitivity",
-            "Information-Theoretic Security",
-        ),
-        keywords=("quantum sensing", "quantum metrology", "quantum coherence"),
-    ),
-    InterdisciplinaryDomain(
-        name="Evolutionary Game Dynamics & Population Ecology",
-        category_label="Applied Mathematics & Evolutionary Biology",
-        primary_category=ScienceCategory.SOCIAL_COGNITIVE,
-        tier=DiscoveryTier.FRONTIER,
-        affinities={
-            ScienceCategory.BIOLOGY: 0.9,
-            ScienceCategory.SOCIAL_COGNITIVE: 1.0,
-            ScienceCategory.MATHEMATICS: 0.9,
-            ScienceCategory.COMPUTER_SCIENCE: 0.8,
-            ScienceCategory.PHYSICS: 0.6,
-            ScienceCategory.MATERIALS: 0.1,
-            ScienceCategory.GENERAL_SCIENCE: 0.8,
-        },
-        methods=(
-            "Replicator Dynamics Formulations",
-            "Evolutionary Stable Strategy (ESS) Analysis",
-            "Spatial Population Lattice Modeling",
-            "Adaptive Dynamics Frameworks",
-        ),
-        phenomena=(
-            "Cooperative Trait Stabilization",
-            "Frequency-Dependent Selection Transitions",
-            "Tragedy of the Commons Avoidance",
-            "Eco-Evolutionary Feedback Loops",
-        ),
-        concepts=(
-            "Public Goods Dynamics in Microorganisms",
-            "Stochastic Moran Processes",
-            "Spatial Clustered Cooperation",
-            "Resource Partitioning Games",
-        ),
-        properties=(
-            "Evolutionary Stability",
-            "Collective Fitness Optimization",
-            "Cheater Resistance",
-            "Population Persistence",
-        ),
-        keywords=("evolutionary game theory", "replicator dynamics", "population dynamics"),
-    ),
-)
-
-
+        async with aiohttp.ClientSession() as session:
+            # Concurrently fetch both highly cited and recent
+            tasks = [
+                fetch_json(url, session, params_cited),
+                fetch_json(url, session, params_recent)
+            ]
+            responses = await asyncio.gather(*tasks)
+            
+            concept_counts = {}
+            for data in responses:
+                for work in data.get("results", []):
+                        for concept in work.get("concepts", []):
+                            lvl = concept.get("level", 0)
+                            if lvl in (2, 3, 4):
+                                c_id = concept["id"]
+                                if c_id not in concept_counts:
+                                    concept_counts[c_id] = {
+                                        "id": c_id,
+                                        "display_name": concept["display_name"],
+                                        "level": lvl,
+                                        "count": 0
+                                    }
+                                concept_counts[c_id]["count"] += 1
+                                
+        return concept_counts
 
 # =====================================================================
 # Conceptual Blending Models & Generator
@@ -1440,12 +392,13 @@ class GeneratedTopic:
     title: str
     primary_topic: str
     secondary_topic: Optional[str]
-    domain: InterdisciplinaryDomain
+    concept_id: str
+    concept_name: str
+    concept_level: int
+    bimodal_score: float
+    tier: DiscoveryTier
     operator_name: str
     rationale: str
-    affinity: float
-    primary_query: str
-    fallback_query: str
     display_primary_topic: Optional[str] = None
     display_secondary_topic: Optional[str] = None
     cosine_similarity: Optional[float] = None
@@ -1453,6 +406,7 @@ class GeneratedTopic:
     vector_zone: Optional[str] = None
     anchor_phrase: Optional[str] = None
     anchor_terms: Optional[List[str]] = None
+    target_query: str = ""
 
 
 def clean_topic_name(topic: str) -> str:
@@ -1581,6 +535,7 @@ def check_anchor_gate(paper: Any, anchor_terms: List[str]) -> bool:
 # =====================================================================
 # Local Vector Intelligence via FastEmbed ONNX (Semantic Corridor Engine)
 # =====================================================================
+
 class SemanticCorridorEngine:
     """
     Autonomous, local vector scoring engine utilizing FastEmbed ONNX.
@@ -1603,7 +558,6 @@ class SemanticCorridorEngine:
         return cls._instance
 
     def _init_engine(self) -> None:
-        """Initialize ONNX TextEmbedding model with graceful fallback."""
         if np is None:
             self.is_available = False
             return
@@ -1616,14 +570,11 @@ class SemanticCorridorEngine:
             self.is_available = False
 
     def embed(self, text: str) -> Optional[Any]:
-        """Compute normalized vector embedding for input text with caching (< 10ms)."""
         if not self.is_available or self.model is None or np is None:
             return None
         cleaned = text.strip().lower()
-        if not cleaned:
-            return None
-        if cleaned in self._cache:
-            return self._cache[cleaned]
+        if not cleaned: return None
+        if cleaned in self._cache: return self._cache[cleaned]
         try:
             generator = self.model.embed([cleaned])
             vec = next(generator)
@@ -1633,66 +584,78 @@ class SemanticCorridorEngine:
         except Exception:
             return None
 
+    async def embed_async(self, text: str) -> Optional[Any]:
+        return await asyncio.to_thread(self.embed, text)
+
     @staticmethod
     def cosine_similarity(u: Optional[Any], v: Optional[Any]) -> float:
-        """Calculate pairwise cosine similarity: cos(u, v) = (u . v) / (||u|| ||v||)."""
-        if u is None or v is None or np is None:
-            return 0.0
+        if u is None or v is None or np is None: return 0.0
         try:
             norm_u = float(np.linalg.norm(u))
             norm_v = float(np.linalg.norm(v))
-            if norm_u == 0.0 or norm_v == 0.0:
-                return 0.0
+            if norm_u == 0.0 or norm_v == 0.0: return 0.0
             return float(np.dot(u, v) / (norm_u * norm_v))
         except Exception:
             return 0.0
+            
+    async def cosine_similarity_async(self, u: Optional[Any], v: Optional[Any]) -> float:
+        return await asyncio.to_thread(self.cosine_similarity, u, v)
 
     @staticmethod
     def calculate_goldilocks_score(similarity: float) -> float:
-        """
-        Interdisciplinary Goldilocks Sweet Spot Function:
-        - Sweet spot [0.35, 0.65]: Peak score (~1.0)
-        - Penalize trivial overlap (s > 0.80, lack of novelty)
-        - Penalize extreme disconnect (s < 0.20, conceptual nonsense)
-        """
         s = max(-1.0, min(1.0, similarity))
-        if 0.40 <= s <= 0.60:
-            return 1.0
-        elif 0.35 <= s < 0.40:
-            return round(0.90 + (s - 0.35) * (0.10 / 0.05), 4)
-        elif 0.60 < s <= 0.65:
-            return round(1.0 - (s - 0.60) * (0.10 / 0.05), 4)
-        elif 0.20 <= s < 0.35:
-            return round(0.30 + (s - 0.20) * (0.60 / 0.15), 4)
-        elif 0.65 < s <= 0.80:
-            return round(0.90 - (s - 0.65) * (0.50 / 0.15), 4)
-        elif s > 0.80:
-            return round(max(0.05, 0.40 - (s - 0.80) * (0.35 / 0.20)), 4)
+        if 0.40 <= s <= 0.60: return 1.0
+        elif 0.35 <= s < 0.40: return round(0.90 + (s - 0.35) * (0.10 / 0.05), 4)
+        elif 0.60 < s <= 0.65: return round(1.0 - (s - 0.60) * (0.10 / 0.05), 4)
+        elif 0.20 <= s < 0.35: return round(0.30 + (s - 0.20) * (0.60 / 0.15), 4)
+        elif 0.65 < s <= 0.80: return round(0.90 - (s - 0.65) * (0.50 / 0.15), 4)
+        elif s > 0.80: return round(max(0.05, 0.40 - (s - 0.80) * (0.35 / 0.20)), 4)
         else:
-            if s <= 0.0:
-                return 0.0
+            if s <= 0.0: return 0.0
             return round(s * (0.30 / 0.20), 4)
 
-    @staticmethod
-    def get_vector_zone(similarity: float) -> str:
-        """Categorize semantic corridor into descriptive interdisciplinary zones."""
-        if 0.35 <= similarity <= 0.65:
-            return "Sweet Spot"
-        elif 0.65 < similarity <= 0.80:
-            return "Moderate Overlap"
-        elif similarity > 0.80:
-            return "Trivial Overlap"
-        elif 0.20 <= similarity < 0.35:
-            return "Distant Analogy"
-        else:
-            return "Conceptual Disconnect"
+    async def compute_bimodal_scores(self, seed_topic: str, concept_counts: Dict[str, dict]) -> List[dict]:
+        vec_seed = await self.embed_async(seed_topic)
+        if vec_seed is None:
+            return []
+            
+        counts = [c["count"] for c in concept_counts.values()]
+        if not counts: return []
+        
+        import math
+        log_counts = [math.log(1 + c) for c in counts]
+        min_c = min(log_counts)
+        max_c = max(log_counts)
+        range_c = max_c - min_c if max_c > min_c else 1.0
+        
+        scored = []
+        for c in concept_counts.values():
+            freq_weight = (math.log(1 + c["count"]) - min_c) / range_c
+            vec_concept = await self.embed_async(c["display_name"])
+            cos_sim = await self.cosine_similarity_async(vec_seed, vec_concept)
+            
+            tier = None
+            if 0.65 <= cos_sim < 0.85: tier = DiscoveryTier.ADJACENT
+            elif 0.45 <= cos_sim < 0.65: tier = DiscoveryTier.TRANSLATIONAL
+            elif 0.20 <= cos_sim < 0.45: tier = DiscoveryTier.FRONTIER
+            else: continue
+            
+            g_score = self.calculate_goldilocks_score(cos_sim)
+            bimodal_score = (0.4 * freq_weight) + (0.6 * g_score)
+            
+            c["cos_sim"] = cos_sim
+            c["bimodal_score"] = bimodal_score
+            c["tier"] = tier
+            scored.append(c)
+            
+        scored.sort(key=lambda x: x["bimodal_score"], reverse=True)
+        return scored
+
 
 
 class TopicCrossBreeder:
     """
-    Algorithmic cross-breeding engine with Domain Affinity filtering and Local Vector Intelligence.
-    Blends input scientific topics with compatible interdisciplinary domains
-    via formal epistemic transfer operators (without paid LLMs).
+    Algorithmic cross-breeding engine with Data-Driven OpenAlex Concepts and Local Vector Intelligence.
     """
 
     def __init__(self, seed: Optional[int] = None, vector_engine: Optional[SemanticCorridorEngine] = None, mode: str = DiscoveryMode.BALANCED):
@@ -1700,7 +663,7 @@ class TopicCrossBreeder:
         self.vector_engine = vector_engine or SemanticCorridorEngine.get_instance()
         self.mode = mode
 
-    def cross_breed(self, topics: List[str], count: int = 10) -> List[GeneratedTopic]:
+    async def cross_breed_async(self, topics: List[str], count: int = 10) -> List[GeneratedTopic]:
         if not topics:
             raise ValueError("At least one scientific topic must be provided.")
 
@@ -1720,282 +683,115 @@ class TopicCrossBreeder:
                 topic_map[raw_t] = raw_t
                 resolved_topics.append(raw_t)
 
-        # Classify each input topic into its primary science category
-        topic_categories = {t: classify_topic(t) for t in resolved_topics}
-
-        # Collect and filter domains based on affinity
         candidates: List[GeneratedTopic] = []
 
-        def article_for(word: str) -> str:
-            return "An" if word and word[0].lower() in "aeiou" else "A"
+        composite_topic = " and ".join([format_topic_for_title(t) for t in resolved_topics])
+        openalex_query = " AND ".join([f'"{format_topic_for_title(t)}"' for t in resolved_topics])
+        
+        # Fetch dynamic concepts for composite query
+        concept_counts = await DynamicConceptMiner.fetch_seed_concepts(openalex_query)
+        scored_concepts = await self.vector_engine.compute_bimodal_scores(composite_topic, concept_counts)
+        
+        is_multi = len(resolved_topics) > 1
+        
+        for concept in scored_concepts:
+            c_name = concept["display_name"]
+            c_id = concept["id"]
+            tier = concept["tier"]
+            bimodal = concept["bimodal_score"]
 
-        # Generate single-topic cross-breeds
-        for topic in resolved_topics:
-            cat = topic_categories[topic]
-            fmt_topic = format_topic_for_title(topic)
-            disp_topic = topic_map.get(topic, fmt_topic)
-
-            # Sort available domains by affinity to ensure high-affinity domains are prioritized
-            scored_domains = [
-                (d, d.affinities.get(cat, 0.5 if cat != ScienceCategory.GENERAL_SCIENCE else 0.8))
-                for d in DOMAINS
-            ]
-            # Filter out incompatible domains (affinity < 0.6), but keep top if all are low
-            compatible_domains = [d for d, aff in scored_domains if aff >= 0.6]
-            if len(compatible_domains) < 8:
-                compatible_domains = [d for d, aff in sorted(scored_domains, key=lambda x: x[1], reverse=True)[:10]]
-
-            self.rng.shuffle(compatible_domains)
-
-            for domain in compatible_domains:
-                aff = domain.affinities.get(cat, 0.8)
-                method = self.rng.choice(domain.methods)
-                phenom = self.rng.choice(domain.phenomena)
-                concept = self.rng.choice(domain.concepts)
-                prop = self.rng.choice(domain.properties)
-                domain_short = domain.name.split('&')[0].strip()
-                domain_kw = domain.keywords[0].title()
-
-                if domain.tier == DiscoveryTier.ADJACENT:
-                    titles = [
-                        f"{concept} in {fmt_topic}: Mechanisms of {prop}",
-                        f"Targeting {phenom} in {fmt_topic}: A {domain_short} Perspective",
-                        f"{fmt_topic} Meets {domain_short}: The Role of {concept}",
-                        f"The Role of {concept} in {fmt_topic}",
-                        f"{domain_kw} and {fmt_topic}: Bridging {domain_short}",
-                    ]
-                    rat = f"Investigates {fmt_topic} through the adjacent framework of {domain.name}, focusing on {concept.lower()}."
-                    op_name = "Sub-Disciplinary Intersection"
-                elif domain.tier == DiscoveryTier.TRANSLATIONAL:
-                    titles = [
-                        f"{method} for {fmt_topic}: Overcoming {prop}",
-                        f"Engineering {fmt_topic} with {concept}: A {domain_short} Approach",
-                        f"From Bench to Bedside: {concept} in {fmt_topic}",
-                        f"{domain_short} Strategies for {fmt_topic}",
-                    ]
-                    rat = f"Applies {domain.name} engineering approaches ({method}) to translate findings in {fmt_topic}."
-                    op_name = "Translational Bioengineering"
+            if is_multi:
+                titles = [
+                    f"Integrating {composite_topic}: The Role of {c_name}",
+                    f"Bridging {composite_topic} via {c_name}",
+                    f"{c_name} Dynamics at the Intersection of {composite_topic}"
+                ]
+                rat = f"Explores the intersection of {composite_topic} focusing on the shared concept of {c_name}."
+                op_name = "Composite Topic Synthesis"
+            else:
+                fmt_topic = format_topic_for_title(resolved_topics[0])
+                if tier == DiscoveryTier.ADJACENT:
+                    titles = [f"{c_name} in {fmt_topic}: Key Mechanisms", f"Targeting {c_name} in {fmt_topic}"]
+                    rat = f"Investigates {fmt_topic} focusing on the dynamic adjacent concept of {c_name}."
+                    op_name = "Adjacent Concept Intersection"
+                elif tier == DiscoveryTier.TRANSLATIONAL:
+                    titles = [f"Engineering {fmt_topic} with {c_name}", f"Translational Strategies: {c_name} in {fmt_topic}"]
+                    rat = f"Translates findings in {fmt_topic} using {c_name}."
+                    op_name = "Translational Concept Approach"
                 else:
-                    titles = [
-                        f"{concept} in {fmt_topic}: A {domain_short} Framework",
-                        f"Applying {method} to {fmt_topic}: Resolving {prop}",
-                        f"{fmt_topic} Through the Lens of {domain_short}",
-                        f"{phenom}: Implications for {fmt_topic}",
-                    ]
-                    rat = f"Synthesizes {fmt_topic} utilizing deep concepts ({concept.lower()}) from {domain.name}."
-                    op_name = "Fundamental Epistemic Leap"
+                    titles = [f"{fmt_topic} Through the Lens of {c_name}", f"Frontier Dynamics: {c_name} and {fmt_topic}"]
+                    rat = f"Explores fundamental frontier concepts of {c_name} applied to {fmt_topic}."
+                    op_name = "Frontier Epistemic Leap"
 
-                # Generate 3 candidates per domain to ensure variety when sorting by vector/affinity score
-                sampled_titles = self.rng.sample(titles, k=min(3, len(titles)))
-                for title in sampled_titles:
-                    candidates.append(self._build_candidate(
-                        title=title,
-                        primary_topic=fmt_topic,
-                        secondary_topic=None,
-                        domain=domain,
-                        operator_name=op_name,
-                        rationale=rat,
-                        affinity=aff,
-                        display_primary_topic=disp_topic
-                    ))
+            title = self.rng.choice(titles)
+            target_query = f'{openalex_query} AND "{c_name}"'
+            
+            candidates.append(GeneratedTopic(
+                index=0,
+                title=title,
+                primary_topic=composite_topic,
+                secondary_topic=None,
+                concept_id=c_id,
+                concept_name=c_name,
+                concept_level=concept["level"],
+                bimodal_score=bimodal,
+                tier=tier,
+                operator_name=op_name,
+                rationale=rat,
+                target_query=target_query
+            ))
 
-        # Operator 4: Dual-Topic Convergence (if >= 2 topics provided)
-        if len(resolved_topics) >= 2:
-            pairs = []
-            for i in range(len(resolved_topics)):
-                for j in range(i + 1, len(resolved_topics)):
-                    pairs.append((resolved_topics[i], resolved_topics[j]))
-
-            for (t_a, t_b) in pairs:
-                fmt_a = format_topic_for_title(t_a)
-                fmt_b = format_topic_for_title(t_b)
-                cat_a = topic_categories[t_a]
-                cat_b = topic_categories[t_b]
-                disp_a = topic_map.get(t_a, fmt_a)
-                disp_b = topic_map.get(t_b, fmt_b)
-
-                for domain in DOMAINS:
-                    aff_a = domain.affinities.get(cat_a, 0.6)
-                    aff_b = domain.affinities.get(cat_b, 0.6)
-                    dual_aff = (aff_a + aff_b) / 2.0
-
-                    # Only bridge topics using domains with solid joint affinity
-                    if dual_aff < 0.6:
-                        continue
-
-                    concept = self.rng.choice(domain.concepts)
-                    domain_short = domain.name.split('&')[0].strip()
-                    title = f"Bridging {fmt_a} and {fmt_b} via {concept}: A {domain_short} Framework"
-                    rationale = f"Synthesizes {fmt_a} and {fmt_b} utilizing {concept.lower()} from {domain.name} as a formal conceptual bridge."
-                    candidates.append(self._build_candidate(
-                        title=title,
-                        primary_topic=fmt_a,
-                        secondary_topic=fmt_b,
-                        domain=domain,
-                        operator_name="Dual-Topic Synthesis",
-                        rationale=rationale,
-                        affinity=dual_aff,
-                        display_primary_topic=disp_a,
-                        display_secondary_topic=disp_b
-                    ))
-
-        # Diversity & Affinity Selection: Pick exactly `count` unique domains
-        selected = self._select_diverse(candidates, count=count, has_multiple_inputs=len(resolved_topics) >= 2)
-
-        # Re-index 1..count
-        for idx, item in enumerate(selected, start=1):
-            item.index = idx
-
-        return selected
-
-    def _build_candidate(
-        self,
-        title: str,
-        primary_topic: str,
-        secondary_topic: Optional[str],
-        domain: InterdisciplinaryDomain,
-        operator_name: str,
-        rationale: str,
-        affinity: float,
-        display_primary_topic: Optional[str] = None,
-        display_secondary_topic: Optional[str] = None
-    ) -> GeneratedTopic:
-        """Construct a candidate with targeted primary and fallback search queries."""
-        anchor_p, terms_p = extract_anchor_phrase_and_terms(primary_topic)
-        domain_kw = domain.keywords[0]
-        domain_alt = domain.keywords[1] if len(domain.keywords) > 1 else domain_kw
-        alt_concepts = [c for c in (domain.methods[:2] + domain.phenomena[:2] + domain.keywords[:2]) if c.lower() != domain_kw.lower()]
-        concept_alt = alt_concepts[0] if alt_concepts else domain_alt
-
-        # Search query engineering with Anchor Invariance:
-        # The user's seed topic is an immutable anchor that is NEVER stripped.
-        if secondary_topic:
-            anchor_s, terms_s = extract_anchor_phrase_and_terms(secondary_topic)
-            primary_query = f'"{anchor_p}" "{anchor_s}" {domain_kw}'
-            fallback_query = f'"{anchor_p}" "{anchor_s}" ({domain_alt} OR "{concept_alt}")'
-            all_anchor_terms = list(dict.fromkeys(terms_p + terms_s))
-            all_anchor_phrase = f"{anchor_p} {anchor_s}"
-        else:
-            primary_query = f'"{anchor_p}" ({domain_kw} OR "{concept_alt}")'
-            fallback_query = f'"{anchor_p}" ({domain_alt} OR "{concept_alt}")'
-            all_anchor_terms = terms_p
-            all_anchor_phrase = anchor_p
-
-        # Autonomous Vector Scoring via FastEmbed ONNX
-        cos_sim = None
-        goldilocks = None
-        zone = None
-        if self.vector_engine and self.vector_engine.is_available:
-            try:
-                u = self.vector_engine.embed(primary_topic)
-                v = self.vector_engine.embed(f"{domain.name}: {', '.join(domain.methods[:2])}")
-                if u is not None and v is not None:
-                    cos_sim = round(self.vector_engine.cosine_similarity(u, v), 3)
-                    goldilocks = round(self.vector_engine.calculate_goldilocks_score(cos_sim), 3)
-                    zone = self.vector_engine.get_vector_zone(cos_sim)
-            except Exception:
-                cos_sim = None
-                goldilocks = None
-                zone = None
-
-        return GeneratedTopic(
-            index=0,
-            title=title,
-            primary_topic=primary_topic,
-            secondary_topic=secondary_topic,
-            domain=domain,
-            operator_name=operator_name,
-            rationale=rationale,
-            affinity=affinity,
-            primary_query=primary_query,
-            fallback_query=fallback_query,
-            display_primary_topic=display_primary_topic or primary_topic,
-            display_secondary_topic=display_secondary_topic or secondary_topic,
-            cosine_similarity=cos_sim,
-            goldilocks_score=goldilocks,
-            vector_zone=zone,
-            anchor_phrase=all_anchor_phrase,
-            anchor_terms=all_anchor_terms
-        )
-
-    def _select_diverse(
-        self,
-        candidates: List[GeneratedTopic],
-        count: int = 10,
-        has_multiple_inputs: bool = False
-    ) -> List[GeneratedTopic]:
-        """Greedily maximize domain diversity, affinity score, and horizon tier quotas."""
-        selected: List[GeneratedTopic] = []
-        used_domains: Set[str] = set()
-
-        # Sort candidates by composite of domain affinity and Goldilocks vector sweet spot
-        shuffled = list(candidates)
-        self.rng.shuffle(shuffled)
-        def rank_score(c: GeneratedTopic) -> float:
-            base = c.affinity
-            if c.goldilocks_score is not None:
-                return 0.7 * base + 0.3 * c.goldilocks_score
-            return base
-
-        shuffled.sort(key=rank_score, reverse=True)
-
-        if self.mode == DiscoveryMode.ADJACENT:
-            quotas = {DiscoveryTier.ADJACENT: 8, DiscoveryTier.TRANSLATIONAL: 1, DiscoveryTier.FRONTIER: 1}
+        # Enforce Quota Requirements
+        tier_groups = {
+            DiscoveryTier.ADJACENT: [],
+            DiscoveryTier.TRANSLATIONAL: [],
+            DiscoveryTier.FRONTIER: []
+        }
+        for cand in candidates:
+            tier_groups[cand.tier].append(cand)
+        
+        for k in tier_groups:
+            tier_groups[k].sort(key=lambda c: c.bimodal_score, reverse=True)
+            
+        if self.mode == DiscoveryMode.BALANCED:
+            quotas = {DiscoveryTier.ADJACENT: 6, DiscoveryTier.TRANSLATIONAL: 3, DiscoveryTier.FRONTIER: 1}
+        elif self.mode == DiscoveryMode.ADJACENT:
+            quotas = {DiscoveryTier.ADJACENT: count, DiscoveryTier.TRANSLATIONAL: 0, DiscoveryTier.FRONTIER: 0}
         elif self.mode == DiscoveryMode.TRANSLATIONAL:
-            quotas = {DiscoveryTier.ADJACENT: 3, DiscoveryTier.TRANSLATIONAL: 5, DiscoveryTier.FRONTIER: 2}
+            quotas = {DiscoveryTier.ADJACENT: 0, DiscoveryTier.TRANSLATIONAL: count, DiscoveryTier.FRONTIER: 0}
         elif self.mode == DiscoveryMode.FRONTIER:
-            quotas = {DiscoveryTier.ADJACENT: 2, DiscoveryTier.TRANSLATIONAL: 2, DiscoveryTier.FRONTIER: 6}
-        else: # BALANCED
-            quotas = {DiscoveryTier.ADJACENT: 6, DiscoveryTier.TRANSLATIONAL: 2, DiscoveryTier.FRONTIER: 2}
+            quotas = {DiscoveryTier.ADJACENT: 0, DiscoveryTier.TRANSLATIONAL: 0, DiscoveryTier.FRONTIER: count}
+        else:
+            quotas = {DiscoveryTier.ADJACENT: count, DiscoveryTier.TRANSLATIONAL: 0, DiscoveryTier.FRONTIER: 0}
+            
+        final_list = []
+        pool = []
+        
+        # Pull by quota
+        for tier, q in quotas.items():
+            pulled = tier_groups[tier][:q]
+            final_list.extend(pulled)
+            # leftover into pool
+            pool.extend(tier_groups[tier][q:])
+            
+        # Backfill if not enough
+        shortfall = count - len(final_list)
+        if shortfall > 0:
+            pool.sort(key=lambda c: c.bimodal_score, reverse=True)
+            final_list.extend(pool[:shortfall])
+            
+        final_list.sort(key=lambda c: c.bimodal_score, reverse=True)
+        # Ensure we don't exceed count if pool is huge
+        final_list = final_list[:count]
+        
+        for i, cand in enumerate(final_list):
+            cand.index = i + 1
+        return final_list
 
-        tier_counts = {t: 0 for t in DiscoveryTier}
-
-        # Priority 1: If multiple inputs, ensure at least 1-2 Dual-Topic Syntheses
-        if has_multiple_inputs:
-            dual_candidates = [c for c in shuffled if c.operator_name == "Dual-Topic Synthesis"]
-            for c in dual_candidates:
-                if len([s for s in selected if s.operator_name == "Dual-Topic Synthesis"]) >= 2:
-                    break
-                if c.domain.name not in used_domains and tier_counts[c.domain.tier] < quotas[c.domain.tier]:
-                    selected.append(c)
-                    used_domains.add(c.domain.name)
-                    tier_counts[c.domain.tier] += 1
-
-        # Priority 2: Distinct domains respecting tier quotas
-        for c in shuffled:
-            if len(selected) >= count:
-                break
-            if c.domain.name not in used_domains and tier_counts[c.domain.tier] < quotas[c.domain.tier]:
-                selected.append(c)
-                used_domains.add(c.domain.name)
-                tier_counts[c.domain.tier] += 1
-
-        # Priority 3: Fill remainder if quotas couldn't be strictly met
-        if len(selected) < count:
-            remaining = [c for c in shuffled if c not in selected]
-            remaining.sort(key=lambda x: -x.affinity)
-            for c in remaining:
-                if len(selected) >= count:
-                    break
-                if c.domain.name not in used_domains:
-                    selected.append(c)
-                    used_domains.add(c.domain.name)
-
-        # Priority 4: Fill remainder with duplicates if desperately needed
-        if len(selected) < count:
-            remaining = [c for c in shuffled if c not in selected]
-            for c in remaining:
-                if len(selected) >= count:
-                    break
-                selected.append(c)
-
-        return selected[:count]
+    def cross_breed(self, topics: List[str], count: int = 10) -> List[GeneratedTopic]:
+        return asyncio.run(self.cross_breed_async(topics, count))
 
 
-# =====================================================================
-# =====================================================================
-# Tri-Axial Academic Literature Models & Clients
-# =====================================================================
 @dataclass
 class RetrievedPaper:
     title: str
@@ -2005,8 +801,8 @@ class RetrievedPaper:
     citations: Optional[int]
     abstract: Optional[str]
     url: Optional[str]
-    query_used: str
-    is_fallback: bool
+    query_used: str = ""
+    is_fallback: bool = False
     source: str = "Google Scholar"
     doi: Optional[str] = None
     oa_url: Optional[str] = None
@@ -2280,363 +1076,179 @@ class OpenAlexClient:
         return res[0] if res else None
 
 
+
 class ScholarLiteratureClient:
     """
-    Tri-Axial Academic Literature Retrieval Engine.
-    Coordinates Google Scholar queries with automated OpenAlex fallbacks across three axes:
-    1. The Foundation (Seminal landmark publication)
-    2. The Frontier (2024-2026 cutting-edge publication/preprint)
-    3. The Review (Comprehensive state-of-the-art survey)
+    Tri-Axial Academic Literature Retrieval Engine (Async OpenAlex).
+    Coordinates OpenAlex Concept ID queries across three axes: Foundation, Frontier, Review.
+    Provides granular axis-specific Scholar fallback.
     """
 
     @classmethod
-    def rerank_and_filter_candidates(
-        cls,
-        candidates: List[RetrievedPaper],
-        topic: GeneratedTopic,
-        anchor_terms: List[str],
-        axis: str,
-        min_similarity: float = 0.35
-    ) -> List[Tuple[RetrievedPaper, float, float]]:
-        """
-        Rerank candidate papers using local FastEmbed vector embeddings and the Anchor Gate.
-        Returns sorted list of (paper, composite_score, cosine_sim) for qualifying papers.
-        """
-        if not candidates:
-            return []
+    async def fetch_triad_async(cls, topic: GeneratedTopic, silent: bool = False) -> LiteratureTriad:
+        if not silent and HAS_RICH and rich_console:
+            rich_console.print(f"[dim]Initiating Async OpenAlex Data-Driven Retrieval for {topic.concept_name}...[/dim]")
+            
+        c_id = topic.concept_id.split("/")[-1] if "/" in topic.concept_id else topic.concept_id
+        
+        async with aiohttp.ClientSession() as session:
+            # The base target_query from our multi-topic synthesis
+            base_search = topic.target_query if topic.target_query else topic.primary_topic
 
-        engine = SemanticCorridorEngine.get_instance()
-        topic_target_text = f"{topic.title}. {topic.rationale}. {topic.domain.name}"
-        vec_topic = engine.embed(topic_target_text) if (engine and engine.is_available) else None
+            # 1. Foundation: Highly cited
+            url = "https://api.openalex.org/works"
+            params_foundation = {
+                "filter": f"concepts.id:{c_id}",
+                "search": base_search,
+                "sort": "cited_by_count:desc",
+                "per-page": 5,
+                "mailto": "test@example.com"
+            }
+            
+            # 2. Frontier: Recent
+            params_frontier = {
+                "filter": f"concepts.id:{c_id},from_publication_date:2024-01-01",
+                "search": base_search,
+                "sort": "publication_date:desc",
+                "per-page": 5,
+                "mailto": "test@example.com"
+            }
+            
+            # 3. Review: type:review
+            params_review = {
+                "filter": f"concepts.id:{c_id},type:review",
+                "search": base_search,
+                "sort": "cited_by_count:desc",
+                "per-page": 5,
+                "mailto": "test@example.com"
+            }
+            
+            async def fetch_paper(u, s, p):
+                async with s.get(u, params=p) as resp:
+                    if resp.status == 200:
+                        return await cls._parse_response_data(await resp.json())
+                    return None
 
-        qualifying: List[Tuple[RetrievedPaper, float, float]] = []
+            tasks = [
+                fetch_paper(url, session, params_foundation),
+                fetch_paper(url, session, params_frontier),
+                fetch_paper(url, session, params_review)
+            ]
+            
+            responses = await asyncio.gather(*tasks, return_exceptions=True)
+            
+            foundation = responses[0] if not isinstance(responses[0], Exception) else None
+            frontier = responses[1] if not isinstance(responses[1], Exception) else None
+            review = responses[2] if not isinstance(responses[2], Exception) else None
 
-        for p in candidates:
-            # 1. Anchor Gate Check
-            if not check_anchor_gate(p, anchor_terms):
-                continue
+            # Fallback for Review if type:review fails
+            if not review:
+                # Text-based fallback
+                query_fallback = f'{base_search} AND ("review" OR "survey" OR "meta-analysis" OR "progress in" OR "advances in")'
+                params_review_fallback = {
+                    "filter": f"concepts.id:{c_id}",
+                    "search": query_fallback,
+                    "sort": "cited_by_count:desc",
+                    "per-page": 5,
+                    "mailto": "test@example.com"
+                }
+                review = await fetch_paper(url, session, params_review_fallback)
+                
+            # Granular Scholar Fallback
+            if not foundation:
+                foundation = await asyncio.to_thread(cls._scholar_fallback, topic.primary_topic)
+            if not frontier:
+                frontier = await asyncio.to_thread(cls._scholar_fallback, f"{topic.primary_topic} AND {topic.concept_name}", year_low=2024)
+            if not review:
+                review = await asyncio.to_thread(cls._scholar_fallback, f"{topic.primary_topic} AND (review OR survey)")
+                
+            return LiteratureTriad(
+                foundation=foundation,
+                frontier=frontier,
+                review=review
+            )
+            
+    @classmethod
+    async def _parse_response_data(cls, data: dict) -> Optional[RetrievedPaper]:
+        results = data.get("results", [])
+        if results:
+            work = results[0]
+            authors = [a["author"]["display_name"] for a in work.get("authorships", [])]
+            venue = work.get("primary_location", {}).get("source", {})
+            venue_name = venue.get("display_name") if venue else "Unknown"
+            return RetrievedPaper(
+                title=work.get("title", "Unknown Title"),
+                authors=authors,
+                venue=venue_name,
+                pub_year=str(work.get("publication_year", "")),
+                citations=work.get("cited_by_count", 0),
+                url=work.get("id"),
+                abstract=reconstruct_abstract(work.get("abstract_inverted_index"))
+            )
+        return None
 
-            # 2. Semantic Vector Gate Check
-            p_text = f"{p.title}. {p.abstract or ''}"
-            if vec_topic is not None and engine and engine.is_available:
-                vec_p = engine.embed(p_text)
-                cos_sim = engine.cosine_similarity(vec_p, vec_topic) if vec_p is not None else 0.5
-            else:
-                cos_sim = 0.5
-
-            if cos_sim < min_similarity:
-                continue
-
-            # 3. Composite Relevance Score tailored to axis
-            title_lower = p.title.lower()
-            anchor_in_title = any(re.search(rf'\b{re.escape(t)}\b', title_lower) for t in anchor_terms)
-            title_boost = 0.15 if anchor_in_title else 0.0
-
-            if axis == "foundation":
-                cit_score = min(1.0, (p.citations or 0) / 100.0)
-                composite = 0.55 * cos_sim + 0.30 * cit_score + title_boost
-            elif axis == "frontier":
-                year_val = int(p.pub_year) if p.pub_year and p.pub_year.isdigit() else 2020
-                year_score = 1.0 if year_val >= 2024 else (0.5 if year_val >= 2022 else 0.1)
-                composite = 0.60 * cos_sim + 0.25 * year_score + title_boost
-            elif axis == "review":
-                is_rev = ("review" in title_lower or "survey" in title_lower or 
-                          "advances" in title_lower or "progress" in title_lower or 
-                          "perspective" in title_lower or (p.venue and "review" in p.venue.lower()))
-                rev_score = 1.0 if is_rev else 0.3
-                composite = 0.60 * cos_sim + 0.25 * rev_score + title_boost
-            else:
-                composite = cos_sim + title_boost
-
-            qualifying.append((p, composite, cos_sim))
-
-        qualifying.sort(key=lambda item: item[1], reverse=True)
-        return qualifying
-
-    @staticmethod
-    def fetch_triad(topic: GeneratedTopic, silent: bool = False) -> LiteratureTriad:
-        def log(msg: str) -> None:
-            if not silent:
-                sys.stderr.write(msg + "\n")
-                sys.stderr.flush()
-
-        triad = LiteratureTriad()
-
-        status_ctx = None
-        if HAS_RICH and not silent and sys.stderr.isatty() and rich_console:
-            status_ctx = rich_console.status("[bold cyan]Querying Google Scholar & OpenAlex across 3 academic axes...", spinner="dots")
-            status_ctx.start()
-
-        def set_status(msg: str, fallback_color=Style.CYAN):
-            if status_ctx:
-                status_ctx.update(f"[bold]{msg}[/]")
-            else:
-                log(color(msg, Style.DIM, fallback_color))
-
+    @classmethod
+    def _scholar_fallback(cls, query: str, year_low: Optional[int] = None) -> Optional[RetrievedPaper]:
         try:
-            # Anchor Invariance: derive core anchor terms and relaxed anchor query
-            anchor_phrase = topic.anchor_phrase or extract_anchor_phrase_and_terms(topic.primary_topic)[0]
-            anchor_terms = topic.anchor_terms or extract_anchor_phrase_and_terms(topic.primary_topic)[1]
-
-            clean_domain_kws = []
-            for k in topic.domain.keywords[:2]:
-                k_clean = re.sub(r'\(.*?\)', '', k).strip()
-                if k_clean and k_clean not in clean_domain_kws:
-                    clean_domain_kws.append(k_clean)
-            if not clean_domain_kws:
-                clean_domain_kws = [topic.domain.name]
-            domain_str = " OR ".join([f'"{k}"' if " " in k else k for k in clean_domain_kws])
-            relaxed_anchor_query = f'"{anchor_phrase}" ({domain_str})'
-
-            # =================================================================
-            # Axis 1: THE FOUNDATION (Seminal Landmark Publication)
-            # =================================================================
-            set_status(f"[*] [1/3 Foundation] Fetching seminal landmark papers for: {topic.primary_query}...", Style.CYAN)
-            found_cands = ScholarLiteratureClient._execute_scholar_search(topic.primary_query, log_func=log, max_results=5)
-            qualifying = ScholarLiteratureClient.rerank_and_filter_candidates(
-                found_cands, topic, anchor_terms, axis="foundation", min_similarity=0.35
-            )
-            oa_found_cands = []
-            if not qualifying:
-                oa_found_cands = OpenAlexClient.search_works(topic.primary_query, sort="relevance_score:desc", per_page=10)
-                qualifying = ScholarLiteratureClient.rerank_and_filter_candidates(
-                    oa_found_cands, topic, anchor_terms, axis="foundation", min_similarity=0.35
-                )
-            relaxed_cands = []
-            if not qualifying:
-                relaxed_cands = OpenAlexClient.search_works(relaxed_anchor_query, sort="relevance_score:desc", per_page=10)
-                qualifying = ScholarLiteratureClient.rerank_and_filter_candidates(
-                    relaxed_cands, topic, anchor_terms, axis="foundation", min_similarity=0.35
-                )
-            if not qualifying and relaxed_cands:
-                qualifying = ScholarLiteratureClient.rerank_and_filter_candidates(
-                    relaxed_cands, topic, anchor_terms, axis="foundation", min_similarity=0.20
-                )
-            anchor_only_cands = []
-            if not qualifying:
-                anchor_only_cands = OpenAlexClient.search_works(f'"{anchor_phrase}"', sort="relevance_score:desc", per_page=10)
-                qualifying = ScholarLiteratureClient.rerank_and_filter_candidates(
-                    anchor_only_cands, topic, anchor_terms, axis="foundation", min_similarity=0.15
-                )
-
-            if qualifying:
-                triad.foundation = qualifying[0][0]
-                triad.foundation.axis = "The Foundation (Seminal Landmark)"
-            else:
-                all_cands = found_cands + oa_found_cands + relaxed_cands + anchor_only_cands
-                anchor_matches = [c for c in all_cands if check_anchor_gate(c, anchor_terms)]
-                if anchor_matches:
-                    triad.foundation = anchor_matches[0]
-                    triad.foundation.axis = "The Foundation (Seminal Landmark)"
-
-            # =================================================================
-            # Axis 2: THE FRONTIER (2024–2026 Cutting-Edge Research & Preprints)
-            # =================================================================
-            set_status("[*] [2/3 Frontier] Fetching 2024–2026 frontier publications...", Style.YELLOW)
-            frontier_cands = ScholarLiteratureClient._execute_scholar_search(topic.primary_query, year_low=2024, log_func=log, max_results=5)
-            qualifying_frontier = ScholarLiteratureClient.rerank_and_filter_candidates(
-                frontier_cands, topic, anchor_terms, axis="frontier", min_similarity=0.35
-            )
-            for cand, comp_score, sim in qualifying_frontier:
-                if not is_same_paper(cand, triad.foundation):
-                    triad.frontier = cand
-                    triad.frontier.axis = "The Frontier (2024-2026 Emerging Edge)"
-                    break
-
-            oa_frontier_cands = []
-            if not triad.frontier:
-                oa_frontier_cands = OpenAlexClient.search_works(topic.primary_query, min_year=2024, sort="relevance_score:desc", per_page=10)
-                qualifying_frontier = ScholarLiteratureClient.rerank_and_filter_candidates(
-                    oa_frontier_cands, topic, anchor_terms, axis="frontier", min_similarity=0.35
-                )
-                for cand, comp_score, sim in qualifying_frontier:
-                    if not is_same_paper(cand, triad.foundation):
-                        triad.frontier = cand
-                        triad.frontier.axis = "The Frontier (2024-2026 Emerging Edge)"
-                        break
-
-            relaxed_frontier_cands = []
-            if not triad.frontier:
-                relaxed_frontier_cands = OpenAlexClient.search_works(relaxed_anchor_query, min_year=2024, sort="relevance_score:desc", per_page=10)
-                qualifying_frontier = ScholarLiteratureClient.rerank_and_filter_candidates(
-                    relaxed_frontier_cands, topic, anchor_terms, axis="frontier", min_similarity=0.25
-                )
-                for cand, comp_score, sim in qualifying_frontier:
-                    if not is_same_paper(cand, triad.foundation):
-                        triad.frontier = cand
-                        triad.frontier.axis = "The Frontier (2024-2026 Emerging Edge)"
-                        break
-
-            anchor_frontier_cands = []
-            if not triad.frontier:
-                anchor_frontier_cands = OpenAlexClient.search_works(f'"{anchor_phrase}"', min_year=2024, sort="relevance_score:desc", per_page=10)
-                qualifying_frontier = ScholarLiteratureClient.rerank_and_filter_candidates(
-                    anchor_frontier_cands, topic, anchor_terms, axis="frontier", min_similarity=0.15
-                )
-                for cand, comp_score, sim in qualifying_frontier:
-                    if not is_same_paper(cand, triad.foundation):
-                        triad.frontier = cand
-                        triad.frontier.axis = "The Frontier (2024-2026 Emerging Edge)"
-                        break
-
-            if not triad.frontier:
-                all_frontier_cands = frontier_cands + oa_frontier_cands + relaxed_frontier_cands + anchor_frontier_cands
-                anchor_matches = [c for c in all_frontier_cands if check_anchor_gate(c, anchor_terms) and not is_same_paper(c, triad.foundation)]
-                if anchor_matches:
-                    triad.frontier = anchor_matches[0]
-                    triad.frontier.axis = "The Frontier (2024-2026 Emerging Edge)"
-
-            # =================================================================
-            # Axis 3: THE REVIEW (State-of-the-Art Comprehensive Survey)
-            # =================================================================
-            set_status("[*] [3/3 Review] Fetching comprehensive review/survey literature...", Style.MAGENTA)
-            review_q = f"{topic.primary_query} review"
-            review_cands = ScholarLiteratureClient._execute_scholar_search(review_q, log_func=log, max_results=5)
-            qualifying_review = ScholarLiteratureClient.rerank_and_filter_candidates(
-                review_cands, topic, anchor_terms, axis="review", min_similarity=0.35
-            )
-            for cand, comp_score, sim in qualifying_review:
-                if not is_same_paper(cand, triad.foundation) and not is_same_paper(cand, triad.frontier):
-                    triad.review = cand
-                    triad.review.axis = "The Review (State-of-the-Art Survey)"
-                    break
-
-            oa_review_cands = []
-            if not triad.review:
-                oa_review_cands = OpenAlexClient.search_works(topic.primary_query, is_review=True, sort="relevance_score:desc", per_page=10)
-                if not oa_review_cands:
-                    oa_review_cands = OpenAlexClient.search_works(review_q, sort="relevance_score:desc", per_page=10)
-                qualifying_review = ScholarLiteratureClient.rerank_and_filter_candidates(
-                    oa_review_cands, topic, anchor_terms, axis="review", min_similarity=0.35
-                )
-                for cand, comp_score, sim in qualifying_review:
-                    if not is_same_paper(cand, triad.foundation) and not is_same_paper(cand, triad.frontier):
-                        triad.review = cand
-                        triad.review.axis = "The Review (State-of-the-Art Survey)"
-                        break
-
-            relaxed_review_cands = []
-            if not triad.review:
-                relaxed_rev_q = f"{relaxed_anchor_query} review"
-                relaxed_review_cands = OpenAlexClient.search_works(relaxed_rev_q, sort="relevance_score:desc", per_page=10)
-                qualifying_review = ScholarLiteratureClient.rerank_and_filter_candidates(
-                    relaxed_review_cands, topic, anchor_terms, axis="review", min_similarity=0.25
-                )
-                for cand, comp_score, sim in qualifying_review:
-                    if not is_same_paper(cand, triad.foundation) and not is_same_paper(cand, triad.frontier):
-                        triad.review = cand
-                        triad.review.axis = "The Review (State-of-the-Art Survey)"
-                        break
-
-            anchor_review_cands = []
-            if not triad.review:
-                anchor_review_cands = OpenAlexClient.search_works(anchor_phrase, is_review=True, sort="relevance_score:desc", per_page=10)
-                if not anchor_review_cands:
-                    anchor_review_cands = OpenAlexClient.search_works(f'"{anchor_phrase}" review', sort="relevance_score:desc", per_page=10)
-                qualifying_review = ScholarLiteratureClient.rerank_and_filter_candidates(
-                    anchor_review_cands, topic, anchor_terms, axis="review", min_similarity=0.15
-                )
-                for cand, comp_score, sim in qualifying_review:
-                    if not is_same_paper(cand, triad.foundation) and not is_same_paper(cand, triad.frontier):
-                        triad.review = cand
-                        triad.review.axis = "The Review (State-of-the-Art Survey)"
-                        break
-
-            if not triad.review:
-                all_rev_cands = review_cands + oa_review_cands + relaxed_review_cands + anchor_review_cands
-                anchor_matches = [c for c in all_rev_cands if check_anchor_gate(c, anchor_terms) and not is_same_paper(c, triad.foundation) and not is_same_paper(c, triad.frontier)]
-                if anchor_matches:
-                    triad.review = anchor_matches[0]
-                    triad.review.axis = "The Review (State-of-the-Art Survey)"
-
-            # Ensure BibTeX entries exist for all papers in triad
-            for p in triad.papers:
-                if not p.bibtex:
-                    p.bibtex = generate_bibtex(p)
-
-        finally:
-            if status_ctx:
-                status_ctx.stop()
-
-        return triad
-
-    @staticmethod
-    def fetch_paper(topic: GeneratedTopic, silent: bool = False) -> Optional[RetrievedPaper]:
-        """Backwards-compatible single paper fetcher delegating to the Foundation axis."""
-        triad = ScholarLiteratureClient.fetch_triad(topic, silent=silent)
-        return triad.foundation or (triad.papers[0] if triad.papers else None)
-
-    @staticmethod
-    def _execute_scholar_search(
-        query: str,
-        year_low: Optional[int] = None,
-        is_fallback: bool = False,
-        log_func=None,
-        max_results: int = 3,
-        timeout: float = 2.5
-    ) -> List[RetrievedPaper]:
-        papers: List[RetrievedPaper] = []
-        err_box: List[Exception] = []
-
-        def _worker():
-            try:
-                kwargs = {}
-                if year_low:
-                    kwargs["year_low"] = year_low
-                search_gen = scholarly.search_pubs(query, **kwargs)
-                for _ in range(max_results):
-                    pub = next(search_gen, None)
-                    if not pub:
-                        break
-                    bib = pub.get("bib", {})
-                    authors = bib.get("author", [])
-                    if isinstance(authors, str):
-                        authors = [a.strip() for a in authors.split(" and ")]
-
-                    paper = RetrievedPaper(
-                        title=bib.get("title", "Untitled Publication"),
-                        authors=authors,
-                        pub_year=str(bib.get("pub_year", "N/A")),
-                        venue=bib.get("venue", bib.get("journal", "Academic Venue")),
-                        citations=pub.get("num_citations"),
-                        abstract=bib.get("abstract", "No abstract snippet available."),
-                        url=pub.get("pub_url") or pub.get("eprint_url") or "https://scholar.google.com",
-                        query_used=query,
-                        is_fallback=is_fallback,
-                        source="Google Scholar"
+            search_query = scholarly.search_pubs(query)
+            for i in range(3):
+                try:
+                    pub = next(search_query)
+                    bib = pub.get('bib', {})
+                    if year_low and bib.get('pub_year'):
+                        try:
+                            if int(bib.get('pub_year')) < year_low:
+                                continue
+                        except ValueError:
+                            pass
+                    return RetrievedPaper(
+                        title=bib.get('title', 'Unknown'),
+                        authors=[bib.get('author', 'Unknown')],
+                        venue=bib.get('venue', 'Unknown'),
+                        pub_year=bib.get('pub_year', ''),
+                        citations=pub.get('num_citations', 0),
+                        url=pub.get('pub_url'),
+                        abstract=bib.get('abstract')
                     )
-                    paper.bibtex = generate_bibtex(paper)
-                    papers.append(paper)
-            except StopIteration:
-                pass
-            except Exception as err:
-                err_box.append(err)
+                except StopIteration:
+                    break
+        except Exception:
+            pass
+        return None
 
-        worker_thread = threading.Thread(target=_worker, daemon=True)
-        worker_thread.start()
-        worker_thread.join(timeout=timeout)
+    @classmethod
+    def fetch_triad(cls, topic: GeneratedTopic, silent: bool = False) -> LiteratureTriad:
+        return asyncio.run(cls.fetch_triad_async(topic, silent))
 
-        if worker_thread.is_alive():
-            if log_func:
-                log_func(color(f"[!] Google Scholar search timed out ({timeout}s / anti-bot challenge). Falling back smoothly to OpenAlex.", Style.YELLOW))
-            return []
+def generate_research_brief(topic: GeneratedTopic, triad: LiteratureTriad) -> str:
+    # Just a placeholder implementation to avoid parsing errors in the string if it relied on domain.name
+    # Since we replaced domain with concept_name
+    lines = [
+        f"# Research Brief: {topic.title}",
+        f"**Primary Topic**: {topic.primary_topic}",
+        f"**Dynamic Concept**: {topic.concept_name} (ID: {topic.concept_id}, Tier: {topic.tier})",
+        f"**Bimodal Score**: {topic.bimodal_score}",
+        f"**Rationale**: {topic.rationale}",
+        "",
+        "## Literature Triad",
+    ]
+    if triad.foundation:
+        lines.append(f"### Foundation\\n- {triad.foundation.title}")
+    if triad.frontier:
+        lines.append(f"### Frontier\\n- {triad.frontier.title}")
+    if triad.review:
+        lines.append(f"### Review\\n- {triad.review.title}")
+        
+    return "\\n".join(lines)
 
-        if err_box and log_func:
-            log_func(color(f"[!] Warning during Scholar search: {err_box[0]}", Style.YELLOW))
-
-        return papers
 
 
-# =====================================================================
-# Automated Research Brief Generator (Research_Brief.md)
-# =====================================================================
 def generate_research_brief(
     topic: GeneratedTopic,
     triad: LiteratureTriad,
     all_topics: List[GeneratedTopic],
     raw_topics: List[str]
 ) -> str:
-    """Generate a publication-ready, comprehensive Markdown Research Brief."""
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     seeds_str = ", ".join(raw_topics)
     cat_name = classify_topic(topic.primary_topic).value.replace("_", " ").title()
@@ -2644,9 +1256,9 @@ def generate_research_brief(
     table_rows = []
     for t in all_topics:
         sel_mark = " **(Selected)**" if t.index == topic.index else ""
-        row = f"| {t.index:02d} | {t.title}{sel_mark} | {t.domain.name} | {int(t.affinity * 100)}% | {t.operator_name} |"
+        row = f"| {t.index:02d} | {t.title}{sel_mark} | {t.concept_name} | {t.bimodal_score:.2f} | {t.operator_name} |"
         table_rows.append(row)
-    landscape_table = "\n".join(table_rows)
+    landscape_table = "\\n".join(table_rows)
 
     def format_paper_section(p: Optional[RetrievedPaper]) -> str:
         if not p:
@@ -2655,64 +1267,55 @@ def generate_research_brief(
             f"- **Title**: {p.title}",
             f"- **Authors**: {', '.join(p.authors) if p.authors else 'Unknown'}",
             f"- **Year**: {p.pub_year} | **Venue**: {p.venue} | **Citations**: {p.citations if p.citations is not None else 'N/A'}",
-            f"- **Source**: {p.source}",
-            f"- **DOI / Landing Page**: [{p.url}]({p.url})"
+            f"- **URL**: {p.url if p.url else 'N/A'}",
         ]
-        if p.oa_url:
-            md.append(f"- **Direct Open Access PDF**: [{p.oa_url}]({p.oa_url})")
-        if p.abstract and p.abstract != "No abstract snippet available.":
-            md.append(f"\n> **Abstract Snippet**: \"{p.abstract.strip()}\"")
-        return "\n".join(md)
+        if p.abstract:
+            md.append(f"\\n> **Abstract**: {p.abstract}\\n")
+        return "\\n".join(md)
 
-    brief_md = f"""# Research Brief: {topic.title}
-*Generated automatically on {now_str} by Science Expander v2.0*
+    markdown = f"""# Science Expander: Dynamic Research Brief
+**Generated On**: {now_str}  
+**Seed Topic(s)**: {seeds_str}  
+**Primary Science Category**: {cat_name}
 
-## Executive Summary & Conceptual Formulation
-- **Seed Scientific Topics**: {seeds_str}
-- **Primary Scientific Faculty**: {cat_name}
-- **Interdisciplinary Bridge**: {topic.domain.name} (`{topic.domain.category_label}`)
-- **Epistemic Transfer Lens**: {topic.operator_name}
-- **Domain Compatibility Affinity**: {int(topic.affinity * 100)}%
+---
 
-### Core Scientific Formulation & Research Problem
+## 1. Executive Summary: The Selected Synthesis
+**Topic #{topic.index:02d}: {topic.title}**
+
+- **Primary Seed Domain**: {topic.primary_topic}
+- **Dynamic Concept**: {topic.concept_name} (ID: {topic.concept_id})
+- **Discovery Tier**: {topic.tier.value.upper() if topic.tier else 'N/A'}
+- **Bimodal Score**: {topic.bimodal_score:.2f}
+- **Epistemic Operator**: {topic.operator_name}
+
+**Algorithmic Rationale**:  
 {topic.rationale}
 
-This interdisciplinary inquiry establishes a formal bridge between **{topic.display_primary_topic or topic.primary_topic}** and the established methods of **{topic.domain.name}**. By translating analytical mechanisms such as *{topic.domain.methods[0]}* and physical phenomena like *{topic.domain.phenomena[0]}*, this research direction addresses foundational questions in *{topic.domain.properties[0].lower()}* and macroscopic system dynamics.
-
 ---
 
-## Interdisciplinary Landscape Map
-Overview of the 10 algorithmically generated research directions across compatible scientific faculties:
+## 2. The Tri-Axial Literature Foundation
 
-| # | Proposed Research Direction | Interdisciplinary Bridge | Affinity | Epistemic Lens |
-|---|---|---|:---:|---|
-{landscape_table}
-
----
-
-## Deep Dive: The Literature Triad
-Detailed 3-dimensional academic slice for Topic #{topic.index:02d}: **{topic.title}**
-
-### 🏛️ The Foundation: Seminal Landmark Publication
+### Axis I: The Foundation (Seminal / Highly Cited)
 {format_paper_section(triad.foundation)}
 
-### ⚡ The Frontier (2024–2026): Emerging Edge & Preprints
+### Axis II: The Frontier (Recent / Cutting-Edge)
 {format_paper_section(triad.frontier)}
 
-### 📚 The Review: Comprehensive Survey of the State-of-the-Art
+### Axis III: The Review (State-of-the-Art Survey)
 {format_paper_section(triad.review)}
 
 ---
 
-## Integrated BibTeX Appendix
-Consolidated bibliography entries ready for direct import into Overleaf, LaTeX, Zotero, or Mendeley:
+## 3. Alternative Conceptual Corridors (Generated Landscape)
+| # | Topic Title | Dynamic Concept | Score | Epistemic Operator |
+|---|---|---|---|---|
+{landscape_table}
 
-```bibtex
-{triad.consolidated_bibtex if triad.consolidated_bibtex else "% No BibTeX entries generated."}
-```
+---
+*Generated autonomously by Science Expander.*
 """
-    return brief_md
-
+    return markdown
 
 def save_research_brief(content: str, filepath: str = "Research_Brief.md") -> bool:
     """Save formatted Markdown Research Brief to a file."""
@@ -3091,8 +1694,8 @@ def generate_knowledge_graph(
     # 2. Bridge Nodes (Interdisciplinary Domains) - Royal Purple (#9d4edd)
     unique_domains = {}
     for t in all_topics:
-        if t.domain.name not in unique_domains:
-            unique_domains[t.domain.name] = t.domain
+        if t.concept_name not in unique_domains:
+            unique_domains[t.concept_name] = t.concept_name
 
     bridge_ids = {}
     for d_name, d_obj in unique_domains.items():
@@ -3116,10 +1719,10 @@ def generate_knowledge_graph(
                 "category": "Interdisciplinary Bridge",
                 "title": d_name,
                 "badge_color": "#9d4edd",
-                "faculty": d_obj.category_label,
-                "methods": ", ".join(d_obj.methods[:3]),
-                "phenomena": ", ".join(d_obj.phenomena[:3]),
-                "description": f"Legitimate interdisciplinary scientific field contributing analytical mechanisms ({', '.join(d_obj.methods[:2])}) and physical phenomena ({', '.join(d_obj.phenomena[:2])})."
+                "faculty": "Dynamic Ontology",
+                "methods": "Data-Driven Conceptual Extraction",
+                "phenomena": "Semantic Corridor Traversal",
+                "description": "Legitimate interdisciplinary scientific field mined dynamically from recent OpenAlex citation graphs."
             }
         })
 
@@ -3127,7 +1730,7 @@ def generate_knowledge_graph(
     for t in all_topics:
         iid = f"idea_{t.index}"
         is_sel = (t.index == topic.index)
-        aff_pct = int(t.affinity * 100)
+        aff_pct = int(t.bimodal_score * 100)
         aff_badge = f"{aff_pct}% HIGH" if aff_pct >= 95 else f"{aff_pct}% MED"
 
         nodes.append({
@@ -3154,12 +1757,11 @@ def generate_knowledge_graph(
                 "index": t.index,
                 "title": t.title,
                 "badge_color": "#00f59b" if is_sel else "#10b981",
-                "bridge": t.domain.name,
-                "faculty": t.domain.category_label,
+                "bridge": t.concept_name,
+                "faculty": "Dynamic Ontology",
                 "affinity": aff_badge,
                 "lens": t.operator_name,
                 "rationale": t.rationale,
-                "query": t.primary_query,
                 "selected": is_sel
             }
         })
@@ -3209,7 +1811,7 @@ def generate_knowledge_graph(
     connected_bridges = set()
     for t in all_topics:
         h_id = hub_ids.get(t.display_primary_topic) or hub_ids.get(t.primary_topic) or list(hub_ids.values())[0]
-        b_id = bridge_ids[t.domain.name]
+        b_id = bridge_ids[t.concept_name]
         pair = (h_id, b_id)
         if pair not in connected_bridges:
             connected_bridges.add(pair)
@@ -3227,7 +1829,7 @@ def generate_knowledge_graph(
 
     # Bridge -> Idea (Edge thickness reflects cosine similarity & selection)
     for t in all_topics:
-        b_id = bridge_ids[t.domain.name]
+        b_id = bridge_ids[t.concept_name]
         i_id = f"idea_{t.index}"
         is_sel = (t.index == topic.index)
         sim_val = t.cosine_similarity if t.cosine_similarity is not None else 0.5
@@ -3323,7 +1925,7 @@ def display_topics(topics: List[GeneratedTopic]) -> None:
         table.add_column("Methodological Lens", style="cyan", min_width=18)
 
         for t in topics:
-            aff_pct = int(t.affinity * 100)
+            aff_pct = int(t.bimodal_score * 100)
             if aff_pct >= 95:
                 badge = f"[bold green]{aff_pct}% HIGH[/]"
             elif aff_pct >= 80:
@@ -3349,8 +1951,8 @@ def display_topics(topics: List[GeneratedTopic]) -> None:
             if disp_s:
                 source_repr += f" × {disp_s}"
 
-            topic_cell = f"[bold]{t.title}[/]\n[dim]{source_repr} ↔ {t.domain.name}[/]"
-            bridge_cell = f"{t.domain.name}\n[dim]({t.domain.category_label})[/]"
+            topic_cell = f"[bold]{t.title}[/]\n[dim]{source_repr} ↔ {t.concept_name}[/]"
+            bridge_cell = f"{t.concept_name}\n[dim]({"Dynamic Ontology"})[/]"
             lens_cell = f"{t.operator_name}\n[dim]{t.rationale[:55]}...[/]"
 
             table.add_row(
@@ -3380,12 +1982,11 @@ def display_topics(topics: List[GeneratedTopic]) -> None:
             if disp_s:
                 source_repr += f" × '{disp_s}'"
             
-            aff_pct = int(t.affinity * 100)
+            aff_pct = int(t.bimodal_score * 100)
             aff_color = Style.GREEN if aff_pct >= 85 else Style.YELLOW
             vec_info = f"Vector: Sim {t.cosine_similarity:.2f} ({t.vector_zone})" if t.cosine_similarity is not None else "Rule-Based"
-            print(f"     {color('Bridge:', Style.CYAN)} {source_repr} ↔ {color(t.domain.name, Style.YELLOW)}  [{color(f'Affinity: {aff_pct}%', aff_color)}] [{color(vec_info, Style.GREEN)}]")
+            print(f"     {color('Bridge:', Style.CYAN)} {source_repr} ↔ {color(t.concept_name, Style.YELLOW)}  [{color(f'Affinity: {aff_pct}%', aff_color)}] [{color(vec_info, Style.GREEN)}]")
             print(f"     {color('Lens  :', Style.MAGENTA)} {t.operator_name} | {color(t.rationale, Style.DIM)}")
-            print(f"     {color('Query :', Style.DIM)} {t.primary_query}")
             print()
 
 
@@ -3394,7 +1995,7 @@ def display_triad(topic: GeneratedTopic, triad: LiteratureTriad) -> None:
     if HAS_RICH and rich_console:
         header_text = (
             f"[bold white]Topic #{topic.index}: \"{topic.title}\"[/]\n"
-            f"[dim cyan]Bridge:[/] [magenta]{topic.domain.name}[/] ({topic.domain.category_label})  |  "
+            f"[dim cyan]Bridge:[/] [magenta]{topic.concept_name}[/] ({"Dynamic Ontology"})  |  "
             f"[dim cyan]Epistemic Lens:[/] [cyan]{topic.operator_name}[/]"
         )
         rich_console.print(Panel(
@@ -3519,7 +2120,7 @@ def prompt_user_selection(topics: List[GeneratedTopic]) -> GeneratedTopic:
 # =====================================================================
 # Main Application Entrypoint
 # =====================================================================
-def main() -> None:
+async def main_async() -> None:
     parser = argparse.ArgumentParser(
         description="Science Expander: Tri-axial literature retrieval and automated research brief generator.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -3673,7 +2274,7 @@ Examples:
 
     # Algorithmic Cross-Breeding with Domain Affinity
     breeder = TopicCrossBreeder(seed=args.seed, mode=args.mode)
-    generated = breeder.cross_breed(input_en_topics, count=10)
+    generated = await breeder.cross_breed_async(input_en_topics, count=10)
 
     for g in generated:
         if not g.display_primary_topic or g.display_primary_topic == g.primary_topic:
@@ -3695,7 +2296,7 @@ Examples:
         selected_topic = prompt_user_selection(generated)
 
     # Tri-Axial Literature Retrieval (Foundation, Frontier, Review)
-    triad = ScholarLiteratureClient.fetch_triad(selected_topic, silent=args.json)
+    triad = await ScholarLiteratureClient.fetch_triad_async(selected_topic, silent=args.json)
     paper = triad.foundation or (triad.papers[0] if triad.papers else None)
 
     # Generate Markdown Research Brief & Knowledge Graph
@@ -3715,16 +2316,14 @@ Examples:
                     "display_primary_topic": t.display_primary_topic or t.primary_topic,
                     "secondary_topic": t.secondary_topic,
                     "display_secondary_topic": t.display_secondary_topic or t.secondary_topic,
-                    "domain": t.domain.name,
-                    "category": t.domain.category_label,
+                    "domain": t.concept_name,
+                    "category": "Dynamic Ontology",
                     "lens": t.operator_name,
                     "rationale": t.rationale,
-                    "affinity": t.affinity,
+                    "affinity": t.bimodal_score,
                     "cosine_similarity": t.cosine_similarity,
                     "goldilocks_score": t.goldilocks_score,
-                    "vector_zone": t.vector_zone,
-                    "primary_query": t.primary_query,
-                    "fallback_query": t.fallback_query
+                    "vector_zone": t.vector_zone
                 }
                 for t in generated
             ],
@@ -3804,7 +2403,7 @@ Examples:
                     out_f.write(f"- {t} ({classify_topic(t).value})\n")
                 out_f.write("\nGenerated 10 Interdisciplinary Topics:\n")
                 for t in generated:
-                    out_f.write(f"[{t.index:02d}] {t.title}\n    Bridge: {t.domain.name} (Affinity: {int(t.affinity*100)}%)\n    Lens: {t.operator_name}\n\n")
+                    out_f.write(f"[{t.index:02d}] {t.title}\n    Bridge: {t.concept_name} (Affinity: {int(t.bimodal_score*100)}%)\n    Lens: {t.operator_name}\n\n")
                 if paper:
                     out_f.write(f"\nRetrieved Literature for Topic #{selected_topic.index}:\n")
                     out_f.write(f"Title: {paper.title}\nAuthors: {', '.join(paper.authors)}\nYear: {paper.pub_year}\nVenue: {paper.venue}\nURL: {paper.url}\nCitations: {paper.citations}\nSource: {paper.source}\n\nAbstract:\n{paper.abstract}\n\nBibTeX:\n{paper.bibtex}\n")
@@ -3816,7 +2415,7 @@ Examples:
 if __name__ == "__main__":
     exit_code = 0
     try:
-        main()
+        asyncio.run(main_async())
     except SystemExit as se:
         exit_code = se.code if isinstance(se.code, int) else (0 if se.code is None else 1)
     except KeyboardInterrupt:
@@ -3831,3 +2430,9 @@ if __name__ == "__main__":
         except Exception:
             pass
         os._exit(exit_code)
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(main_async())
+    except KeyboardInterrupt:
+        pass

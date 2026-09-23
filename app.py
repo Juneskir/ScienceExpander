@@ -328,7 +328,7 @@ def render_app():
         with m_col3:
             st.metric("Discovery Yield", f"{len(generated_topics)} Topics")
         with m_col4:
-            min_aff = min((t.affinity for t in generated_topics), default=0.85)
+            min_aff = min((t.bimodal_score for t in generated_topics), default=0.85)
             st.metric("Min Domain Affinity", f"{int(min_aff * 100)}%")
 
         st.markdown("---")
@@ -337,7 +337,7 @@ def render_app():
         for idx, top in enumerate(generated_topics):
             col_content, col_action = st.columns([5, 1.2])
 
-            aff_pct = int(top.affinity * 100)
+            aff_pct = int(top.bimodal_score * 100)
             if aff_pct >= 95:
                 badge_html = f'<span class="badge-high">{aff_pct}% HIGH AFFINITY</span>'
             else:
@@ -355,12 +355,12 @@ def render_app():
                             <strong>Synthesized Concept:</strong> {top.rationale}
                         </p>
                         <div style="margin-bottom: 0.4rem;">
-                            <span class="meta-pill">🏛️ <strong>Bridge Domain:</strong> {top.domain.name}</span>
+                            <span class="meta-pill">🏛️ <strong>Bridge Domain:</strong> {top.concept_name}</span>
                             <span class="meta-pill">🔍 <strong>Methodological Lens:</strong> {top.operator_name}</span>
                             <span class="meta-pill">🧭 <strong>Vector Sim:</strong> {f'{top.cosine_similarity:.2f} ({top.vector_zone})' if top.cosine_similarity is not None else 'Rule-Based'}</span>
                         </div>
                         <div style="color: #94a3b8; font-size: 0.85rem; font-family: monospace;">
-                            <strong>Target Literature Query:</strong> <code>{top.primary_query}</code>
+                            <strong>Target Literature Query:</strong> <code>{top.target_query}</code>
                         </div>
                     </div>
                     """,
@@ -386,7 +386,7 @@ def render_app():
         )
 
         topic_options = [
-            f"#{t.index:02d}: {t.title} ({t.domain.name})" for t in generated_topics
+            f"#{t.index:02d}: {t.title} ({t.concept_name})" for t in generated_topics
         ]
         selected_str = st.selectbox(
             "Choose a synthesized idea to retrieve literature for:",
@@ -565,12 +565,12 @@ def render_app():
                         "index": t.index,
                         "title": t.title,
                         "rationale": t.rationale,
-                        "bridge_domain": t.domain.name,
-                        "affinity": t.affinity,
+                        "bridge_domain": t.concept_name,
+                        "affinity": t.bimodal_score,
                         "cosine_similarity": t.cosine_similarity,
                         "goldilocks_score": t.goldilocks_score,
                         "vector_zone": t.vector_zone,
-                        "primary_query": t.primary_query,
+                        "primary_query": t.target_query,
                         "operator_name": t.operator_name,
                     }
                     for t in generated_topics
